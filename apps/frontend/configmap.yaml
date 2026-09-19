@@ -1,0 +1,75 @@
+# apps/frontend/configmap.yaml
+# ------------------------------------------------------------------------------
+# Frontend configuration — includes NGINX server config.
+# React environment variables must be baked in at BUILD time (REACT_APP_* prefix).
+# Runtime variables should be injected via NGINX env substitution or config.js.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: frontend-config
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+data:
+  # ---- Application settings ------------------------------------------------
+  APP_ENV: "dev"
+  API_BASE_URL: "https://api.example.com"   # CHANGE: your backend API URL
+
+  # ---- NGINX configuration -------------------------------------------------
+  # Configures NGINX to:
+  #   - Serve React SPA with HTML5 history API fallback
+  #   - Expose /healthz for ALB health checks
+  #   - Enable gzip compression
+  #   - Add security headers
+  nginx.conf: |
+    server {
+        listen 80;
+        server_name _;
+        root /usr/share/nginx/html;
+        index index.html;
+
+        # Security headers
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-XSS-Protection "1; mode=block" always;
+        add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
+        # Gzip compression
+        gzip on;
+        gzip_types text/plain text/css application/json application/javascript text/xml application/xml image/svg+xml;
+        gzip_min_length 1024;
+
+        # Health check endpoint (used by ALB and readiness probe)
+        location /healthz {
+            access_log off;
+            return 200 "healthy\n";
+            add_header Content-Type text/plain;
+        }
+
+        # Static assets — long cache TTL for hashed filenames
+        location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+            expires 1y;
+            add_header Cache-Control "public, immutable";
+            try_files $uri =404;
+        }
+
+        # SPA fallback — all routes return index.html
+        location / {
+            try_files $uri $uri/ /index.html;
+            add_header Cache-Control "no-cache, no-store, must-revalidate";
+        }
+
+        # API proxy (optional — remove if frontend calls API directly)
+        # location /api/ {
+        #     proxy_pass http://backend.apps.svc.cluster.local/;
+        #     proxy_set_header Host $host;
+        #     proxy_set_header X-Real-IP $remote_addr;
+        #     proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        #     proxy_set_header X-Forwarded-Proto $scheme;
+        # }
+    }

@@ -1,0 +1,21 @@
+# platform/security/clusterrolebinding.yaml
+# ------------------------------------------------------------------------------
+# Reusable ClusterRoleBinding — binds a ClusterRole to a ServiceAccount.
+# ------------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: starter-platform-reader-binding  # CHANGE: <role>-binding
+  labels:
+    app.kubernetes.io/name: starter-platform-reader-binding
+    app.kubernetes.io/component: security
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+subjects:
+  - kind: ServiceAccount
+    name: starter-app-sa                  # CHANGE: ServiceAccount name
+    namespace: apps                       # CHANGE: ServiceAccount namespace
+roleRef:
+  kind: ClusterRole
+  name: starter-platform-reader          # CHANGE: ClusterRole name (must match clusterrole.yaml)
+  apiGroup: rbac.authorization.k8s.io

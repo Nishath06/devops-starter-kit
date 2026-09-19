@@ -1,0 +1,28 @@
+# apps/backend/pvc.yaml
+# ------------------------------------------------------------------------------
+# Optional PersistentVolumeClaim for backend data.
+# Only needed if the backend writes files to disk (uploads, temp files, etc.).
+# For stateless APIs: omit this and use emptyDir for /tmp.
+# For stateful storage: prefer using Amazon S3 via the AWS SDK instead.
+#
+# To use: uncomment the volume and volumeMount in deployment.yaml.
+# To switch from EBS to EFS: change storageClassName only.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: backend-pvc
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  accessModes:
+    - ReadWriteOnce   # EBS: single pod; change to ReadWriteMany for EFS
+  storageClassName: ebs-gp3         # CHANGE: ebs-gp3 | efs-sc
+  resources:
+    requests:
+      storage: 10Gi                # CHANGE: your required size

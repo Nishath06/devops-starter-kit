@@ -1,0 +1,38 @@
+# platform/storage/efs-storageclass.yaml
+# ------------------------------------------------------------------------------
+# AWS EFS StorageClass — for shared, multi-AZ, ReadWriteMany workloads.
+#
+# EFS volumes are:
+#   - Shared across all AZs in the region
+#   - ReadWriteMany (multiple pods can write simultaneously)
+#   - Best for: ML model caches, shared config, stateless app shared state,
+#               multi-pod log aggregation, content repositories
+#
+# Prerequisites:
+#   1. aws-efs-csi-driver must be installed (bootstrap/install.sh)
+#   2. An EFS FileSystem must already exist in your VPC
+#   3. Set the fileSystemId below (created via Terraform)
+#
+# NOTE: Each PVC creates an EFS Access Point — no pre-provisioning needed.
+# ------------------------------------------------------------------------------
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: efs-sc
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+provisioner: efs.csi.aws.com
+volumeBindingMode: Immediate          # EFS is global — no AZ binding needed
+reclaimPolicy: Delete                 # Deletes the EFS Access Point (not the FileSystem)
+parameters:
+  provisioningMode: efs-ap            # EFS Access Point provisioning (recommended)
+  # CHANGE: Set your EFS FileSystem ID (from Terraform or AWS Console)
+  # Example: fs-0123456789abcdef0
+  fileSystemId: fs-CHANGE_ME
+  directoryPerms: "700"              # Permissions on the root directory
+  gidRangeStart: "1000"             # GID range for access point
+  gidRangeEnd: "2000"
+  basePath: "/dynamic_provisioning"  # Root path for access points on the EFS
+  # subPathPattern: "${.PVC.namespace}/${.PVC.name}"  # Uncomment for namespace isolation
+  # ensureUniqueDirectory: "true"

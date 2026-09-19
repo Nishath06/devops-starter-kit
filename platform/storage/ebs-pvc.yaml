@@ -1,0 +1,28 @@
+# platform/storage/ebs-pvc.yaml
+# ------------------------------------------------------------------------------
+# PersistentVolumeClaim template for AWS EBS.
+# Copy this to your application directory and change the name, namespace, and size.
+# Applications switch between EBS/EFS by changing storageClassName only.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: starter-app-ebs-pvc         # CHANGE: <app-name>-ebs-pvc
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+  annotations:
+    # If you need to pre-bind to a specific PV, set volumeName below
+    # volume.kubernetes.io/selected-node: ip-10-0-1-1.ec2.internal
+spec:
+  accessModes:
+    - ReadWriteOnce   # EBS supports single-node read/write only
+  storageClassName: ebs-gp3        # CHANGE: ebs-gp3 | ebs-gp2 | ebs-io1
+  resources:
+    requests:
+      storage: 10Gi               # CHANGE: your required storage size
+  # volumeName: pv-XXXXX          # Uncomment to bind to a specific pre-provisioned PV

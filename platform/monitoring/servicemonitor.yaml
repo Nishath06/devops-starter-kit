@@ -1,0 +1,56 @@
+# platform/monitoring/servicemonitor.yaml
+# ------------------------------------------------------------------------------
+# ServiceMonitor — tells Prometheus which Services to scrape.
+# Prometheus Operator discovers ServiceMonitors via label selectors.
+#
+# How to use:
+#   1. Expose a /metrics endpoint in your application (port 9090 or 8080).
+#   2. Add label "monitoring: enabled" to your Service.
+#   3. Apply this (or a copy) to the namespace.
+#   4. Prometheus will automatically start scraping your Service.
+#
+# Reference: https://prometheus-operator.dev/docs/user-guides/getting-started/
+# ------------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: starter-app-servicemonitor  # CHANGE: <app-name>-servicemonitor
+  namespace: monitoring             # Always deploy ServiceMonitors in monitoring namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/managed-by: argocd
+    # This label must match the Prometheus CR's serviceMonitorSelector
+    release: kube-prometheus-stack
+    project: starter
+spec:
+  # Discover Services from all namespaces matching the selector
+  namespaceSelector:
+    any: true                       # CHANGE to matchNames: [apps] to limit scope
+
+  selector:
+    matchLabels:
+      # Services with this label will be scraped
+      # Add this label to your Service in apps/backend/service.yaml
+      monitoring: enabled           # CHANGE: your label selector
+
+  endpoints:
+    - port: metrics                 # CHANGE: port name from your Service (must be named)
+      path: /metrics                # CHANGE: your metrics path
+      interval: 30s                 # Scrape interval
+      scrapeTimeout: 10s            # Timeout per scrape
+      scheme: http                  # Use https if your app serves metrics over TLS
+      honorLabels: true             # Preserve labels from the target
+
+      # --- Optional: Basic Auth for metrics endpoint ------------------------
+      # basicAuth:
+      #   username:
+      #     name: metrics-basic-auth
+      #     key: username
+      #   password:
+      #     name: metrics-basic-auth
+      #     key: password
+
+      # --- Optional: TLS Config for scraping --------------------------------
+      # tlsConfig:
+      #   insecureSkipVerify: true

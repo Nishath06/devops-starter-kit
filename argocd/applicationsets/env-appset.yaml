@@ -1,0 +1,126 @@
+# argocd/applicationsets/env-appset.yaml
+# ------------------------------------------------------------------------------
+# ArgoCD ApplicationSet — Multi-Environment Generator
+# Generates one Application per environment (dev, staging, prod).
+# All environments use the same Helm chart; only values differ.
+#
+# This pattern supports the GitOps workflow:
+#   GitHub Actions → updates environments/<env>/values.yaml
+#   ArgoCD detects change → triggers rolling deployment
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: starter-app-environments
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: starter-app-environments
+    app.kubernetes.io/component: gitops
+    app.kubernetes.io/managed-by: argocd
+spec:
+  # Strategy: all environments are synced together (use RollingSync for staged rollout)
+  strategy:
+    type: RollingSync
+    rollingSync:
+      steps:
+        - matchExpressions:
+            - key: environment
+              operator: In
+              values: [dev]
+        - matchExpressions:
+            - key: environment
+              operator: In
+              values: [staging]
+        - matchExpressions:
+            - key: environment
+              operator: In
+              values: [prod]
+
+  generators:
+    - list:
+        elements:
+          # -------------------------------------------------------------------
+          # Development Environment
+          # -------------------------------------------------------------------
+          - environment: dev
+            namespace: apps-dev
+            replicaCount: "1"
+            ingressHostname: dev.example.com
+            resourceClass: small     # Maps to resources in values-dev.yaml
+
+          # -------------------------------------------------------------------
+          # Staging Environment
+          # -------------------------------------------------------------------
+          - environment: staging
+            namespace: apps-staging
+            replicaCount: "2"
+            ingressHostname: staging.example.com
+            resourceClass: medium
+
+          # -------------------------------------------------------------------
+          # Production Environment
+          # -------------------------------------------------------------------
+          - environment: prod
+            namespace: apps-prod
+            replicaCount: "3"
+            ingressHostname: app.example.com
+            resourceClass: large
+
+  template:
+    metadata:
+      name: "starter-app-{{environment}}"
+      namespace: argocd
+      labels:
+        app.kubernetes.io/name: "starter-app-{{environment}}"
+        app.kubernetes.io/component: application
+        app.kubernetes.io/managed-by: argocd
+        environment: "{{environment}}"
+      finalizers:
+        - resources-finalizer.argocd.argoproj.io
+
+    spec:
+      project: platform
+
+      source:
+        repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+        targetRevision: HEAD
+        path: helm/starter-chart
+
+        helm:
+          # Base values + environment-specific overrides
+          valueFiles:
+            - values.yaml
+            - "../../environments/{{environment}}/values.yaml"
+
+          # Dynamic overrides from the generator
+          parameters:
+            - name: replicaCount
+              value: "{{replicaCount}}"
+            - name: ingress.hosts[0].host
+              value: "{{ingressHostname}}"
+            - name: global.environment
+              value: "{{environment}}"
+
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: "{{namespace}}"
+
+      syncPolicy:
+        automated:
+          prune: true
+          selfHeal: true
+        syncOptions:
+          - CreateNamespace=true
+          - ServerSideApply=true
+        retry:
+          limit: 5
+          backoff:
+            duration: 5s
+            factor: 2
+            maxDuration: 3m
+
+      ignoreDifferences:
+        - group: apps
+          kind: Deployment
+          jsonPointers:
+            - /spec/replicas   # Let HPA manage replicas in prod

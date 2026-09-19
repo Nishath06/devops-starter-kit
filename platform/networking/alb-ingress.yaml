@@ -1,0 +1,88 @@
+# platform/networking/alb-ingress.yaml
+# ------------------------------------------------------------------------------
+# Reusable AWS ALB Ingress template.
+# Managed by AWS Load Balancer Controller (must be installed first).
+# Supports: HTTPS termination, WAF, cognito auth, target group routing.
+#
+# Reference: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.7/guide/ingress/annotations/
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: starter-app-alb             # CHANGE: <app-name>-alb
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: ingress
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+  annotations:
+    # ---- Core ALB Settings --------------------------------------------------
+    kubernetes.io/ingress.class: alb                              # Use ALB ingress class
+    alb.ingress.kubernetes.io/scheme: internet-facing            # CHANGE to "internal" for private ALB
+    alb.ingress.kubernetes.io/target-type: ip                    # "ip" routes directly to pods (recommended)
+
+    # ---- SSL / TLS ----------------------------------------------------------
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"                # Force redirect HTTP → HTTPS
+    # CHANGE: Add your ACM certificate ARN (required for HTTPS)
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID
+
+    # ---- Health Check -------------------------------------------------------
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz         # CHANGE to your readiness endpoint
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "30"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "3"
+    alb.ingress.kubernetes.io/success-codes: "200,301,302"       # Acceptable health check codes
+
+    # ---- Session Stickiness (uncomment if needed) ---------------------------
+    # alb.ingress.kubernetes.io/target-group-attributes: >-
+    #   stickiness.enabled=true,
+    #   stickiness.lb_cookie.duration_seconds=86400
+
+    # ---- WAF (uncomment and add your WAF ACL ARN) ---------------------------
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:REGION:ACCOUNT:regional/webacl/NAME/ID
+
+    # ---- Access Logs (uncomment and set S3 bucket) --------------------------
+    # alb.ingress.kubernetes.io/load-balancer-attributes: >-
+    #   access_logs.s3.enabled=true,
+    #   access_logs.s3.bucket=my-alb-logs,
+    #   access_logs.s3.prefix=starter-app
+
+    # ---- Load Balancer Attributes -------------------------------------------
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      idle_timeout.timeout_seconds=60,
+      routing.http2.enabled=true
+
+    # ---- Tags applied to the ALB resource in AWS ----------------------------
+    alb.ingress.kubernetes.io/tags: "Environment=dev,Project=starter,ManagedBy=argocd"
+
+    # ---- Cognito Auth (uncomment for user pool auth) ------------------------
+    # alb.ingress.kubernetes.io/auth-type: cognito
+    # alb.ingress.kubernetes.io/auth-idp-cognito: >-
+    #   {"userPoolARN":"arn:aws:cognito-idp:...","userPoolClientID":"...","userPoolDomain":"..."}
+
+spec:
+  ingressClassName: alb
+  rules:
+    - host: app.example.com         # CHANGE: your application hostname
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: starter-app-clusterip  # CHANGE: your Service name
+                port:
+                  name: http
+          # --- Additional path routing (uncomment as needed) -----------------
+          # - path: /api
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: backend-svc
+          #       port:
+          #         name: http

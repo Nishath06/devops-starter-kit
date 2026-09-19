@@ -1,0 +1,20 @@
+# platform/namespaces/platform.yaml
+# ------------------------------------------------------------------------------
+# Namespace for platform-level resources (networking templates, storage, RBAC).
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: platform
+    project: starter
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    argocd.argoproj.io/managed-by: argocd
+    description: "Platform engineering resources — networking, storage, RBAC templates"
+    team: platform-engineering
+    cost-center: "platform"

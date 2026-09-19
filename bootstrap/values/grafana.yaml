@@ -1,0 +1,74 @@
+# bootstrap/values/grafana.yaml
+# ------------------------------------------------------------------------------
+# Standalone Grafana Helm values (when deploying Grafana separately).
+# If using kube-prometheus-stack, Grafana config lives in prometheus.yaml.
+# Reference: https://github.com/grafana/helm-charts/blob/main/charts/grafana/values.yaml
+# ------------------------------------------------------------------------------
+
+replicas: 1
+
+adminUser: admin
+# adminPassword is passed at install time via --set to avoid storing secrets here.
+# Export GRAFANA_ADMIN_PASSWORD and it will be picked up by install.sh.
+
+persistence:
+  enabled: true
+  storageClassName: ebs-gp3
+  size: 5Gi
+  accessModes:
+    - ReadWriteOnce
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Datasources — Prometheus is auto-configured by kube-prometheus-stack.
+# Add additional datasources here:
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Prometheus
+        type: prometheus
+        url: http://kube-prometheus-stack-prometheus.monitoring.svc.cluster.local:9090
+        access: proxy
+        isDefault: true
+
+# Dashboard providers — sidecar watches ConfigMaps with label grafana_dashboard: "1"
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: default
+        orgId: 1
+        folder: ''
+        type: file
+        disableDeletion: false
+        editable: true
+        options:
+          path: /var/lib/grafana/dashboards/default
+
+# Sidecar for dynamic dashboard loading from ConfigMaps
+sidecar:
+  dashboards:
+    enabled: true
+    label: grafana_dashboard
+    labelValue: "1"
+    searchNamespace: ALL
+  datasources:
+    enabled: true
+    label: grafana_datasource
+
+# Ingress (disabled by default — enable after ALB controller is ready)
+ingress:
+  enabled: false
+  ingressClassName: alb
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+  hosts:
+    - grafana.example.com

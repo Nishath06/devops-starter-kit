@@ -1,0 +1,52 @@
+# platform/security/poddisruptionbudget.yaml
+# ------------------------------------------------------------------------------
+# PodDisruptionBudget (PDB) — ensures minimum availability during:
+#   - Node drains (cluster upgrades, spot instance reclamation)
+#   - Rolling deployments
+#   - Voluntary disruptions (maintenance)
+#
+# Best practices:
+#   - Always create a PDB for any Deployment with >1 replica.
+#   - Use minAvailable=1 (or 50%) to allow rolling updates.
+#   - Set maxUnavailable=1 for critical services (at most 1 pod down at a time).
+# ------------------------------------------------------------------------------
+
+# --- Backend PDB: At least 1 pod always available ---------------------------
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: starter-app-backend-pdb     # CHANGE: <app-name>-backend-pdb
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  minAvailable: 1                   # Guarantee at least 1 backend pod during disruptions
+  # maxUnavailable: 1              # Alternative: allow at most 1 pod unavailable
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: starter-app
+      app.kubernetes.io/component: backend
+
+---
+# --- Frontend PDB: Percentage-based availability ----------------------------
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: starter-app-frontend-pdb   # CHANGE: <app-name>-frontend-pdb
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  minAvailable: "50%"               # At least 50% of frontend pods must stay running
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: starter-app
+      app.kubernetes.io/component: frontend

@@ -1,0 +1,164 @@
+# apps/worker/deployment.yaml
+# ------------------------------------------------------------------------------
+# Background Worker Deployment — for async processing, queue consumers.
+# Suitable for: Celery, BullMQ, SQS consumers, Kafka consumers, Python workers.
+#
+# Key differences from backend:
+#   - No ingress (not HTTP-accessible)
+#   - No readiness probe on HTTP (uses exec probe instead)
+#   - Reads from queue — scales based on queue depth (or CPU/memory here)
+#   - Typically runs 1-N replicas per queue partition
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+      app.kubernetes.io/component: worker
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 1             # Workers can tolerate brief interruptions
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/component: worker
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/managed-by: argocd
+        environment: dev
+        project: starter
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: worker-sa
+      automountServiceAccountToken: true   # Enabled for SQS/Secrets Manager IRSA
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      nodeSelector: {}
+      # Workers can optionally run on spot instances for cost savings:
+      tolerations: []
+        # - key: "spot"
+        #   operator: "Equal"
+        #   value: "true"
+        #   effect: "NoSchedule"
+      affinity: {}
+
+      # Workers processing long jobs need extra grace time
+      terminationGracePeriodSeconds: 120   # Give workers time to finish current job
+
+      containers:
+        - name: worker
+
+          # CHANGE: your ECR worker image
+          # image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/worker:latest
+          image: python:3.12-slim-bookworm  # Placeholder
+
+          imagePullPolicy: Always
+
+          # Workers often have no HTTP port — use metrics only
+          ports:
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+
+          command: ["python"]
+          args: ["-m", "worker.main"]    # CHANGE: your worker entrypoint
+
+          env:
+            - name: APP_ENV
+              value: "dev"
+            - name: WORKER_CONCURRENCY
+              value: "4"               # Number of concurrent jobs per pod
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+
+          envFrom:
+            - configMapRef:
+                name: worker-config
+            - secretRef:
+                name: worker-secret
+
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+
+          resources:
+            requests:
+              cpu: 200m              # Workers are typically CPU/memory intensive
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+
+          # Workers don't serve HTTP — use exec probe to check health
+          startupProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]  # CHANGE: your health check
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 12
+
+          livenessProbe:
+            exec:
+              command: ["python", "-c", "import sys; sys.exit(0)"]  # CHANGE: check queue connection
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+
+          # Workers are always "ready" — no readiness probe needed unless
+          # they need to signal they're not accepting work
+          # readinessProbe: {}
+
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            # Mount for downloaded artifacts or ML models
+            # - name: data
+            #   mountPath: /data
+
+          lifecycle:
+            preStop:
+              exec:
+                # Signal worker to finish current job before termination
+                command: ["/bin/sh", "-c", "echo 'shutting down' && sleep 30"]
+
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 500Mi
+        # - name: data
+        #   persistentVolumeClaim:
+        #     claimName: worker-pvc

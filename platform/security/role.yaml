@@ -1,0 +1,42 @@
+# platform/security/role.yaml
+# ------------------------------------------------------------------------------
+# Reusable Role template — namespace-scoped RBAC.
+# Follows least privilege: grant only what the application needs.
+#
+# Common use cases:
+#   - Allow a backend app to read ConfigMaps and Secrets in its namespace.
+#   - Allow a controller to create/update Pods or Jobs.
+#   - Allow a monitoring agent to list Services and Endpoints.
+# ------------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: starter-app-role            # CHANGE: <app-name>-role
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: security
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+rules:
+  # --- Example: Read ConfigMaps and Secrets (minimum for most apps) ----------
+  - apiGroups: [""]
+    resources: ["configmaps", "secrets"]
+    verbs: ["get", "watch", "list"]
+
+  # --- Example: List pods and services (for health check sidecars) ----------
+  - apiGroups: [""]
+    resources: ["pods", "services", "endpoints"]
+    verbs: ["get", "list", "watch"]
+
+  # --- Example: Manage Jobs (for CronJob-spawned Jobs) ----------------------
+  # - apiGroups: ["batch"]
+  #   resources: ["jobs"]
+  #   verbs: ["get", "list", "watch", "create", "delete"]
+
+  # --- Example: Manage own deployment (for self-updating controllers) -------
+  # - apiGroups: ["apps"]
+  #   resources: ["deployments"]
+  #   verbs: ["get", "list", "watch", "update", "patch"]
+  #   resourceNames: ["starter-app"]   # Restrict to specific resource

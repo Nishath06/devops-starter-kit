@@ -1,0 +1,18 @@
+# apps/worker/pvc.yaml
+# Optional — for workers that download and cache large artifacts (ML models, datasets)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: worker-pvc
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/managed-by: argocd
+spec:
+  accessModes:
+    - ReadWriteOnce           # Use ReadWriteMany (efs-sc) for shared model cache across worker pods
+  storageClassName: ebs-gp3   # CHANGE: efs-sc for shared cache across all workers
+  resources:
+    requests:
+      storage: 20Gi

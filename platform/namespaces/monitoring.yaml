@@ -1,0 +1,21 @@
+# platform/namespaces/monitoring.yaml
+# ------------------------------------------------------------------------------
+# Namespace for observability stack (Prometheus, Grafana, Alertmanager).
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: platform
+    project: starter
+    # Monitoring namespace needs slightly relaxed PSS (Prometheus DaemonSets)
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: baseline
+  annotations:
+    argocd.argoproj.io/managed-by: argocd
+    description: "Observability stack — Prometheus, Grafana, Alertmanager"
+    team: platform-engineering
+    cost-center: "platform"

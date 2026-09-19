@@ -1,0 +1,27 @@
+# apps/cronjob/service.yaml
+# ------------------------------------------------------------------------------
+# Service for CronJob metrics and health endpoints.
+# Exposes Prometheus metrics (via Pushgateway or internal metrics exporter)
+# and liveness endpoints for batch monitoring.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: cronjob
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    monitoring: enabled
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+  ports:
+    - name: metrics
+      port: 9091
+      targetPort: 9091
+      protocol: TCP

@@ -1,0 +1,138 @@
+# apps/cronjob/cronjob.yaml
+# ------------------------------------------------------------------------------
+# CronJob — for scheduled background tasks.
+# Suitable for: daily reports, data exports, cleanup jobs, cache warming,
+#               DB maintenance, S3 lifecycle management, nightly ML training.
+#
+# Key differences from Deployment:
+#   - Runs on a schedule (cron syntax)
+#   - Creates a new Job (and Pod) each run
+#   - No persistent replica state — stateless execution
+#   - concurrencyPolicy controls overlap between runs
+# ------------------------------------------------------------------------------
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: starter-cronjob
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  # ---- Schedule (UTC timezone) ---------------------------------------------
+  # Format: minute hour day-of-month month day-of-week
+  # Examples:
+  #   "0 * * * *"      — hourly at :00
+  #   "0 2 * * *"      — daily at 02:00 UTC
+  #   "0 2 * * 0"      — weekly on Sunday at 02:00 UTC
+  #   "0 2 1 * *"      — monthly on the 1st at 02:00 UTC
+  #   "*/5 * * * *"    — every 5 minutes (for testing)
+  schedule: "0 2 * * *"            # CHANGE: your cron schedule
+
+  timezone: "UTC"                  # Explicit timezone (Kubernetes 1.27+)
+  concurrencyPolicy: Forbid        # CHANGE: Allow | Forbid | Replace
+                                   # Forbid = skip if previous job is still running
+  failedJobsHistoryLimit: 3        # Keep last 3 failed job records
+  successfulJobsHistoryLimit: 3    # Keep last 3 successful job records
+  startingDeadlineSeconds: 600     # Start job within 10 min of scheduled time or skip
+
+  jobTemplate:
+    metadata:
+      labels:
+        app.kubernetes.io/name: starter-cronjob
+        app.kubernetes.io/component: cronjob
+        app.kubernetes.io/managed-by: argocd
+    spec:
+      # ---- Job settings -------------------------------------------------------
+      backoffLimit: 3              # Retry up to 3 times on failure
+      activeDeadlineSeconds: 3600  # Kill job if it runs longer than 1 hour
+      ttlSecondsAfterFinished: 86400  # Auto-delete finished jobs after 24h
+
+      template:
+        metadata:
+          labels:
+            app.kubernetes.io/name: starter-cronjob
+            app.kubernetes.io/component: cronjob
+            environment: dev
+            project: starter
+        spec:
+          serviceAccountName: cronjob-sa
+          automountServiceAccountToken: true   # For IRSA AWS API access
+
+          restartPolicy: OnFailure             # Retry the same pod on failure
+
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            fsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+
+          # Run cronjobs on spot nodes to save cost
+          tolerations: []
+            # - key: "spot"
+            #   operator: "Equal"
+            #   value: "true"
+            #   effect: "NoSchedule"
+
+          priorityClassName: low-priority      # Batch jobs = lowest priority
+
+          containers:
+            - name: job
+
+              # CHANGE: your ECR image
+              # image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/cronjob:latest
+              image: python:3.12-slim-bookworm  # Placeholder
+
+              imagePullPolicy: Always
+
+              command: ["python"]
+              args: ["-m", "jobs.daily_report"]   # CHANGE: your job entrypoint
+
+              env:
+                - name: APP_ENV
+                  value: "dev"
+                - name: JOB_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: AWS_DEFAULT_REGION
+                  value: "us-east-1"
+
+              envFrom:
+                - configMapRef:
+                    name: cronjob-config
+                - secretRef:
+                    name: cronjob-secret
+
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 1Gi       # Jobs can use more memory for batch processing
+
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+
+          volumes:
+            - name: tmp
+              emptyDir:
+                sizeLimit: 1Gi

@@ -1,0 +1,58 @@
+# helm/starter-chart/values-dev.yaml
+# ------------------------------------------------------------------------------
+# Development environment overrides.
+# Applied on top of values.yaml: helm install -f values.yaml -f values-dev.yaml
+# ------------------------------------------------------------------------------
+
+global:
+  environment: dev
+
+# Development: minimal replicas to save cost
+replicaCount: 1
+
+image:
+  tag: "latest"                    # Always use latest in dev (push triggers deploy)
+  pullPolicy: Always
+
+# Dev: relaxed resources
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+# Dev: disable HPA (keep 1 replica fixed)
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+
+# Dev: internal-facing ALB (no public exposure)
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internal       # Internal ALB for dev
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+  hosts:
+    - host: api-dev.internal.example.com             # CHANGE: internal dev hostname
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Dev: no PDB needed
+podDisruptionBudget:
+  enabled: false
+
+# Dev configuration overrides
+config:
+  APP_ENV: "dev"
+  LOG_LEVEL: "debug"               # Verbose logging in dev
+  LOG_FORMAT: "text"               # Human-readable logs in dev
+
+# Dev: relaxed storage
+persistence:
+  enabled: false                   # No storage in dev by default

@@ -1,0 +1,43 @@
+# environments/staging/values.yaml
+# ------------------------------------------------------------------------------
+# Staging environment values — production-like but with relaxed limits.
+# Used to validate releases before production promotion.
+# GitOps workflow: GitHub Actions updates ONLY image.tag via PR.
+# ------------------------------------------------------------------------------
+
+global:
+  environment: staging
+
+image:
+  tag: "latest"                    # Updated by GitHub Actions CI pipeline
+
+replicaCount: 2
+
+ingress:
+  hosts:
+    - host: api-staging.example.com  # CHANGE: staging hostname
+      paths:
+        - path: /
+          pathType: Prefix
+
+config:
+  APP_ENV: "staging"
+  LOG_LEVEL: "info"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi

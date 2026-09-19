@@ -1,0 +1,116 @@
+# platform/security/networkpolicy.yaml
+# ------------------------------------------------------------------------------
+# Reusable NetworkPolicy templates — zero-trust network segmentation.
+# By default, all pods can communicate with all other pods. NetworkPolicies
+# implement micro-segmentation at Layer 3/4.
+#
+# IMPORTANT: NetworkPolicy requires a CNI plugin that supports it.
+# On EKS, use: Amazon VPC CNI with Network Policy support (requires EKS 1.25+),
+#              or Calico, or Cilium.
+# Enable network policy on EKS: https://docs.aws.amazon.com/eks/latest/userguide/cni-network-policy.html
+# ------------------------------------------------------------------------------
+
+# --- Policy 1: Default Deny All (recommended baseline) ----------------------
+# Apply this first, then selectively allow traffic with the policies below.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: apps                   # CHANGE: apply to each namespace
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+spec:
+  podSelector: {}                   # Selects ALL pods in the namespace
+  policyTypes:
+    - Ingress
+    - Egress                        # Block all ingress AND egress by default
+
+---
+# --- Policy 2: Allow app ingress from the same namespace only ---------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-same-namespace
+  namespace: apps
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: starter-app  # CHANGE: or remove to apply to all pods
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector: {}           # Allow from all pods in same namespace
+
+---
+# --- Policy 3: Allow backend to receive from frontend -----------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-frontend-to-backend
+  namespace: apps
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/component: frontend
+      ports:
+        - protocol: TCP
+          port: 8080
+
+---
+# --- Policy 4: Allow monitoring (Prometheus) to scrape all pods ---------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-prometheus-scrape
+  namespace: apps
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+spec:
+  podSelector: {}                   # All pods in namespace
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 9090                # Prometheus metrics port
+
+---
+# --- Policy 5: Allow DNS egress (required for all pods) ---------------------
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  namespace: apps
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53

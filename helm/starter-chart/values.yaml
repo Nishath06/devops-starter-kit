@@ -1,0 +1,189 @@
+# helm/starter-chart/values.yaml
+# ------------------------------------------------------------------------------
+# Default values for starter-chart.
+# Override per-environment in values-dev.yaml / values-prod.yaml.
+# Override at deploy time: helm install -f values-prod.yaml
+# Override per-key: helm install --set image.tag=v1.2.3
+# ------------------------------------------------------------------------------
+
+# ---- Global settings --------------------------------------------------------
+global:
+  environment: dev
+  project: starter
+
+# ---- Replica count ----------------------------------------------------------
+replicaCount: 2
+
+# ---- Image ------------------------------------------------------------------
+image:
+  # CHANGE: Set your ECR repository
+  # repository: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/starter-app
+  repository: nginx
+  tag: "latest"                    # GitOps pipeline updates this value
+  pullPolicy: Always
+
+imagePullSecrets: []               # Add if using private registry outside IRSA
+
+# ---- Service Account --------------------------------------------------------
+serviceAccount:
+  create: true
+  name: ""                         # Auto-generated if empty
+  annotations:
+    {}
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/starter-app-irsa-role
+
+# ---- Pod Annotations --------------------------------------------------------
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+# ---- Pod Security Context ---------------------------------------------------
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# ---- Container Security Context --------------------------------------------
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# ---- Service ----------------------------------------------------------------
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  metricsPort: 9090
+  annotations:
+    monitoring: enabled
+
+# ---- Ingress ----------------------------------------------------------------
+ingress:
+  enabled: true
+  className: alb
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID
+  hosts:
+    - host: app.example.com        # CHANGE: your hostname
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+# ---- Resources --------------------------------------------------------------
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# ---- Horizontal Pod Autoscaler ---------------------------------------------
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 75
+  scaleDownStabilizationWindowSeconds: 300
+
+# ---- Probes -----------------------------------------------------------------
+startupProbe:
+  enabled: true
+  httpGet:
+    path: /healthz
+    port: http
+  initialDelaySeconds: 10
+  periodSeconds: 10
+  failureThreshold: 30
+
+livenessProbe:
+  enabled: true
+  httpGet:
+    path: /healthz
+    port: http
+  periodSeconds: 15
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  enabled: true
+  httpGet:
+    path: /ready
+    port: http
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+# ---- Persistent Storage ------------------------------------------------------
+persistence:
+  enabled: false
+  storageClass: ebs-gp3            # CHANGE: ebs-gp3 | ebs-io1 | efs-sc
+  accessMode: ReadWriteOnce        # ReadWriteMany for EFS
+  size: 10Gi
+  mountPath: /data
+
+# ---- Application Configuration (ConfigMap) ----------------------------------
+config:
+  APP_ENV: "dev"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  PORT: "8080"
+  AWS_REGION: "us-east-1"         # CHANGE: your region
+
+# ---- Secrets (stringData — NOT for real secrets in production) -------------
+# In production: use ExternalSecret CRs and remove these values.
+secrets:
+  DB_PASSWORD: "CHANGE_ME"
+  API_KEY: "CHANGE_ME"
+
+# ---- Scheduling (affinity/tolerations/nodeSelector) -------------------------
+nodeSelector: {}
+tolerations: []
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - "{{ .Release.Name }}"
+          topologyKey: topology.kubernetes.io/zone
+
+# ---- Extra environment variables -------------------------------------------
+extraEnv: []
+# - name: CUSTOM_VAR
+#   value: "custom-value"
+# - name: SECRET_VAR
+#   valueFrom:
+#     secretKeyRef:
+#       name: my-secret
+#       key: my-key
+
+# ---- Pod Disruption Budget --------------------------------------------------
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# ---- Priority ---------------------------------------------------------------
+priorityClassName: medium-priority
+
+# ---- Termination Grace Period -----------------------------------------------
+terminationGracePeriodSeconds: 30

@@ -1,0 +1,22 @@
+# apps/frontend/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: frontend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

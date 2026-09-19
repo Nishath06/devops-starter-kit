@@ -1,0 +1,59 @@
+# argocd/applications/backend.yaml
+# ------------------------------------------------------------------------------
+# ArgoCD Application: Backend Service
+# Manages: apps/backend/ manifests
+# In a real deployment, this would point to the Helm chart at helm/starter-chart/
+# with environment-specific values from environments/prod/values.yaml
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+
+  source:
+    repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+    targetRevision: HEAD
+
+    # Option A: Use raw manifests from apps/backend/
+    path: apps/backend
+
+    # Option B: Use Helm chart (uncomment and remove path above)
+    # path: helm/starter-chart
+    # helm:
+    #   valueFiles:
+    #     - ../../environments/dev/values.yaml
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  # Ignore differences in fields managed externally
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas   # Ignored so HPA can manage replica count

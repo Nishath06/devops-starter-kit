@@ -1,0 +1,107 @@
+# bootstrap/values/prometheus.yaml
+# ------------------------------------------------------------------------------
+# Helm values for kube-prometheus-stack.
+# Reference: https://github.com/prometheus-community/helm-charts/blob/main/charts/kube-prometheus-stack/values.yaml
+# ------------------------------------------------------------------------------
+
+## Global
+global:
+  rbac:
+    create: true
+
+## Prometheus
+prometheus:
+  prometheusSpec:
+    replicas: 1
+    retention: 15d
+    retentionSize: "10GB"
+
+    # Scrape all ServiceMonitors and PodMonitors across all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    resources:
+      requests:
+        cpu: 200m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+
+    # Persistent storage for Prometheus data (EBS)
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ebs-gp3   # Defined in platform/storage/ebs-storageclass.yaml
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 20Gi
+
+    # Additional scrape configs can be added here
+    # additionalScrapeConfigs: []
+
+## Alertmanager
+alertmanager:
+  alertmanagerSpec:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: ebs-gp3
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 5Gi
+
+  config:
+    global:
+      resolve_timeout: 5m
+    route:
+      group_by: ['alertname', 'namespace']
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 12h
+      receiver: 'null'
+    receivers:
+      - name: 'null'
+      # Configure Slack/PagerDuty/SNS receivers here:
+      # - name: slack
+      #   slack_configs:
+      #     - api_url: https://hooks.slack.com/services/...
+      #       channel: '#alerts'
+
+## Grafana (see grafana.yaml for dedicated values)
+grafana:
+  enabled: true
+  adminPassword: "prom-operator"  # Override via --set at install time
+  persistence:
+    enabled: true
+    storageClassName: ebs-gp3
+    size: 5Gi
+
+## Node Exporter
+nodeExporter:
+  enabled: true
+
+## kube-state-metrics
+kubeStateMetrics:
+  enabled: true
+
+## Prometheus Operator
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

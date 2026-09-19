@@ -1,0 +1,289 @@
+# apps/backend/deployment.yaml
+# ------------------------------------------------------------------------------
+# Backend REST API Deployment — production-grade template.
+# Suitable for: FastAPI, Flask, Django, Express.js, Spring Boot.
+#
+# Customise the following:
+#   - metadata.name, namespace, labels
+#   - spec.replicas
+#   - spec.template.spec.containers[0].image
+#   - All probe paths and ports
+#   - Resource requests/limits
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/version: "1.0.0"    # Updated by GitOps workflow
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+  annotations:
+    # Used by ArgoCD to display deployment info
+    deployment.kubernetes.io/revision: "1"
+    # Triggers a rolling update when ConfigMap/Secret changes
+    # (inject a hash here via Helm or Kustomize)
+    # configmap-hash: "abc123"
+spec:
+  # ---------------------------------------------------------------------------
+  # Replica strategy — HPA manages this value in production (ignored by ArgoCD)
+  # ---------------------------------------------------------------------------
+  replicas: 2
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: backend
+      app.kubernetes.io/component: backend
+
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0             # Zero downtime: never reduce below desired count
+      maxSurge: 1                   # Allow 1 extra pod during rollout
+
+  # ---------------------------------------------------------------------------
+  # Pod template
+  # ---------------------------------------------------------------------------
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: backend
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/version: "1.0.0"
+        app.kubernetes.io/managed-by: argocd
+        environment: dev
+        project: starter
+      annotations:
+        # Prometheus sidecar auto-scraping (alternative to ServiceMonitor)
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        # Inject config hash to force pod restart on config change (Helm sets this)
+        # checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+
+    spec:
+      # -----------------------------------------------------------------------
+      # ServiceAccount (with IRSA support)
+      # -----------------------------------------------------------------------
+      serviceAccountName: backend-sa   # Must exist — see serviceaccount.yaml
+      automountServiceAccountToken: true
+
+      # -----------------------------------------------------------------------
+      # Security Context — pod level
+      # -----------------------------------------------------------------------
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+
+      # -----------------------------------------------------------------------
+      # Scheduling — affinity, tolerations, nodeSelector
+      # -----------------------------------------------------------------------
+      # Node selector: pin to specific node groups (e.g., application nodes)
+      nodeSelector: {}
+        # node.kubernetes.io/instance-type: m5.large
+        # kubernetes.io/arch: amd64
+
+      # Tolerations: allow scheduling on tainted nodes (e.g., spot instances)
+      tolerations: []
+        # - key: "spot"
+        #   operator: "Equal"
+        #   value: "true"
+        #   effect: "NoSchedule"
+
+      # Affinity: spread pods across AZs for HA
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: backend
+                topologyKey: topology.kubernetes.io/zone   # Spread across AZs
+        # nodeAffinity: {}          # Uncomment to add node affinity rules
+
+      # -----------------------------------------------------------------------
+      # Grace period for in-flight requests
+      # -----------------------------------------------------------------------
+      terminationGracePeriodSeconds: 30
+
+      # -----------------------------------------------------------------------
+      # Init containers (uncomment if needed — e.g., DB migration)
+      # -----------------------------------------------------------------------
+      # initContainers:
+      #   - name: migrate
+      #     image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/backend:latest
+      #     command: ["python", "manage.py", "migrate"]
+      #     envFrom:
+      #       - configMapRef:
+      #           name: backend-config
+      #       - secretRef:
+      #           name: backend-secret
+
+      # -----------------------------------------------------------------------
+      # Main application container
+      # -----------------------------------------------------------------------
+      containers:
+        - name: backend
+
+          # CHANGE: Set your ECR image URL and tag
+          # image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/backend:latest
+          image: public.ecr.aws/amazonlinux/amazonlinux:2  # Placeholder
+
+          imagePullPolicy: Always    # Use IfNotPresent for immutable tags (v1.2.3)
+
+          # ---- Ports --------------------------------------------------------
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: metrics
+              containerPort: 9090
+              protocol: TCP
+
+          # ---- Environment Variables ----------------------------------------
+          env:
+            # Application environment
+            - name: APP_ENV
+              value: "dev"           # CHANGE: dev | staging | prod
+
+            # Expose pod metadata to the application
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+
+            # Port configuration
+            - name: PORT
+              value: "8080"
+
+            # AWS region (auto-detected via IMDS on EKS, but explicit is safer)
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"     # CHANGE: your AWS region
+
+            # Add more env vars here or via ConfigMap/Secret references below
+
+          # ---- ConfigMap references ----------------------------------------
+          envFrom:
+            - configMapRef:
+                name: backend-config   # Must match configmap.yaml
+            - secretRef:
+                name: backend-secret   # Must match secret.yaml
+
+          # ---- Security Context (container level) --------------------------
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true   # Force read-only FS (write to /tmp via emptyDir)
+            capabilities:
+              drop: ["ALL"]
+
+          # ---- Resource Management -----------------------------------------
+          resources:
+            requests:
+              cpu: 100m              # Guaranteed CPU — used by HPA and scheduler
+              memory: 128Mi          # Guaranteed memory
+            limits:
+              cpu: 500m              # CPU cap — throttled (not killed) when exceeded
+              memory: 512Mi          # Memory cap — OOMKilled when exceeded
+
+          # ---- Startup Probe -----------------------------------------------
+          # Gives slow-starting apps time to initialise before liveness takes over.
+          startupProbe:
+            httpGet:
+              path: /healthz         # CHANGE: your startup check endpoint
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 10  # Wait before first check
+            periodSeconds: 10        # Check every 10s
+            timeoutSeconds: 5
+            failureThreshold: 30     # Allow up to 30*10s = 5 min to start
+
+          # ---- Liveness Probe -----------------------------------------------
+          # Restarts the container if the app is in a broken state.
+          livenessProbe:
+            httpGet:
+              path: /healthz         # CHANGE: your liveness endpoint (e.g., /live)
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 0   # Startup probe handles initial delay
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3      # Restart after 3 consecutive failures
+            successThreshold: 1
+
+          # ---- Readiness Probe ----------------------------------------------
+          # Removes pod from Service endpoints when not ready (e.g., during startup, loading)
+          readinessProbe:
+            httpGet:
+              path: /ready           # CHANGE: your readiness endpoint (e.g., /ready, /healthz/ready)
+              port: http
+              scheme: HTTP
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+            successThreshold: 1
+
+          # ---- Volume Mounts -----------------------------------------------
+          volumeMounts:
+            # Writable /tmp for read-only root filesystem
+            - name: tmp
+              mountPath: /tmp
+            # Optional: EBS/EFS data volume (uncomment if pvc.yaml is used)
+            # - name: data
+            #   mountPath: /data
+            # Optional: AWS secrets via External Secrets
+            # - name: aws-secrets
+            #   mountPath: /secrets
+            #   readOnly: true
+
+          # ---- Lifecycle hooks -----------------------------------------------
+          lifecycle:
+            preStop:
+              exec:
+                # Allow in-flight requests to drain before shutdown
+                command: ["/bin/sh", "-c", "sleep 5"]
+
+      # -----------------------------------------------------------------------
+      # Volumes
+      # -----------------------------------------------------------------------
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+
+        # Uncomment to mount a PVC (define in pvc.yaml first)
+        # - name: data
+        #   persistentVolumeClaim:
+        #     claimName: backend-pvc
+
+        # Uncomment for AWS Secrets Manager via External Secrets
+        # - name: aws-secrets
+        #   secret:
+        #     secretName: backend-aws-secret
+
+      # -----------------------------------------------------------------------
+      # Image pull secret (for private ECR — usually handled by IRSA node role)
+      # -----------------------------------------------------------------------
+      # imagePullSecrets:
+      #   - name: ecr-registry-secret

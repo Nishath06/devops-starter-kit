@@ -1,0 +1,63 @@
+# environments/local/values.yaml
+# ------------------------------------------------------------------------------
+# Local Environment Overrides (Optimized for KinD / Minikube / Docker Desktop)
+# ------------------------------------------------------------------------------
+# Characteristics:
+#   - Single replica (saves laptop RAM/CPU)
+#   - Standard storageClass (KinD's default local-path-provisioner)
+#   - NGINX Ingress class (KinD port-mapped host routing)
+#   - No AWS IRSA annotations or AWS ALB dependencies
+#   - Low CPU and Memory requests/limits
+# ------------------------------------------------------------------------------
+
+replicaCount: 1
+
+image:
+  repository: nginx
+  tag: alpine
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 80
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    ingress.class: nginx
+  hosts:
+    - host: app.local.test
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+
+persistence:
+  enabled: true
+  storageClass: standard        # KinD default local-path storage
+  accessMode: ReadWriteOnce
+  size: 1Gi
+
+serviceAccount:
+  create: true
+  annotations: {}              # No AWS IAM Role needed locally
+
+config:
+  APP_ENV: "local"
+  LOG_LEVEL: "debug"
+
+secrets:
+  DB_PASSWORD: "local-dev-password"

@@ -1,0 +1,22 @@
+# platform/namespaces/argocd.yaml
+# ------------------------------------------------------------------------------
+# Namespace for ArgoCD itself.
+# NOTE: This is usually created by the bootstrap/install.sh script before ArgoCD
+# is installed. This manifest is here for GitOps completeness — ArgoCD will
+# manage it after it is installed.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: argocd
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: platform
+    project: starter
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: baseline
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    description: "ArgoCD GitOps controller namespace"
+    team: platform-engineering
+    cost-center: "platform"

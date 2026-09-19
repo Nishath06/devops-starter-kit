@@ -1,0 +1,54 @@
+# platform/storage/emptydir-example.yaml
+# ------------------------------------------------------------------------------
+# emptyDir volume example — temporary in-pod storage.
+# Use for: shared data between containers in the same pod (sidecars),
+#          temporary caches, downloaded artifacts, lock files.
+#
+# IMPORTANT: emptyDir is ephemeral — data is lost when the pod is deleted.
+#            Never use for data that must persist across pod restarts.
+#
+# emptyDir can optionally use tmpfs (RAM-backed) for ultra-low latency:
+#   medium: Memory
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: emptydir-example            # CHANGE: your deployment name
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: emptydir-example
+    app.kubernetes.io/component: example
+    app.kubernetes.io/managed-by: argocd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: emptydir-example
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: emptydir-example
+    spec:
+      containers:
+        - name: app
+          image: nginx:1.27-alpine
+          volumeMounts:
+            # Disk-backed emptyDir (uses node's disk space)
+            - name: tmp-cache
+              mountPath: /tmp/cache
+
+            # Memory-backed emptyDir (RAM) — fast but uses pod memory limit
+            - name: shared-memory
+              mountPath: /dev/shm
+
+      volumes:
+        # Standard disk-backed emptyDir
+        - name: tmp-cache
+          emptyDir:
+            sizeLimit: 500Mi        # Optional: limit disk usage
+
+        # Memory-backed emptyDir (tmpfs) — use for high-performance shared memory
+        - name: shared-memory
+          emptyDir:
+            medium: Memory
+            sizeLimit: 256Mi        # MUST set sizeLimit for Memory-backed dirs

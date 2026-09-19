@@ -1,0 +1,227 @@
+# ==============================================================================
+# DevOps Starter Kit - Complete .gitignore
+# Covers: Terraform, Kubernetes, Helm, ArgoCD, CI/CD, Cloud Providers, Secrets & OS
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# 1. Terraform
+# ------------------------------------------------------------------------------
+# Local .terraform directories and plugin caches
+.terraform/
+**/.terraform/
+.terraform.lock.hcl.bak
+
+# State files & state history
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+*.tfstate.lock.info
+.terraform.tfstate.lock.info
+
+# Crash & execution logs
+crash.log
+crash.*.log
+*.tflog
+
+# Sensitive variable definitions (passwords, tokens, database credentials)
+*.tfvars
+*.tfvars.json
+# Allow example and template files to be tracked
+!*.tfvars.example
+!*.tfvars.template
+
+# Local developer overrides
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Terraform execution plan binary outputs (can contain sensitive variable values)
+*.tfplan
+*.plan
+
+# ------------------------------------------------------------------------------
+# 2. Kubernetes, Helm & Cluster Tooling
+# ------------------------------------------------------------------------------
+# Cluster connection & credentials
+kubeconfig
+kubeconfig*
+*.kubeconfig
+.kube/
+kind-kubeconfig*
+.minikube/
+.k8s/
+
+# Helm packaged chart archives & provenance files
+*.tgz
+*.tgz.prov
+.helm/
+
+# Helm chart dependency directories (populated by `helm dependency build`)
+charts/
+**/charts/
+
+# Local Helm values overrides (preserve template/example values)
+values.local.yaml
+values.local.yml
+values-local.yaml
+values-local.yml
+local-values.yaml
+local-values.yml
+
+# Decrypted / Plaintext Kubernetes secret files (preserve tracked template manifests)
+*.decrypted.yaml
+*.decrypted.yml
+*.dec.yaml
+*.dec.yml
+secret.local.yaml
+secret.local.yml
+secrets.local.yaml
+secrets.local.yml
+
+# ArgoCD local CLI session & credentials
+.argocd/
+argocd-admin-secret*
+argocd-token*
+
+# ------------------------------------------------------------------------------
+# 3. Cloud Providers & CLI Credentials
+# ------------------------------------------------------------------------------
+# AWS credentials & profiles
+.aws/
+*aws*credentials*
+aws_access_key*
+
+# Google Cloud credentials
+*gcp-key*.json
+*gcp-credentials*.json
+service-account*.json
+.gcloud/
+
+# Azure credentials & cache
+.azure/
+*azure*.json
+
+# ------------------------------------------------------------------------------
+# 4. Environment Variables & Secret Files
+# ------------------------------------------------------------------------------
+# Environment config files containing secrets
+.env
+.env.*
+.env.local
+.env.*.local
+# Allow public example templates
+!.env.example
+!.env.template
+
+# SSL / TLS / SSH private keys and certificates
+*.pem
+*.key
+*.pfx
+*.p12
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+id_ecdsa
+id_ecdsa.*
+
+# ------------------------------------------------------------------------------
+# 5. Containers & CI/CD
+# ------------------------------------------------------------------------------
+# Docker credentials and build artifacts
+.docker/
+docker-compose.override.yml
+
+# CI/CD runners, caches, test reports & build outputs
+.jenkins/
+.act/
+coverage/
+*.lcov
+test-results/
+
+# ------------------------------------------------------------------------------
+# 6. Languages & Local Tooling (Python, Node.js, Shell, Go)
+# ------------------------------------------------------------------------------
+# Python caches & virtual environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.pytest_cache/
+
+# Node.js dependencies & logs
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Compiled binaries and local builds
+bin/
+dist/
+build/
+*.exe
+*.out
+
+# ------------------------------------------------------------------------------
+# 7. Media & Large Binary Files (Avoid hitting GitHub 100MB file limit)
+# ------------------------------------------------------------------------------
+*.mp4
+*.mov
+*.avi
+*.mkv
+*.webm
+*.iso
+*.tar
+*.tar.gz
+*.zip
+*.7z
+
+# ------------------------------------------------------------------------------
+# 8. Logs & Temporary Files
+# ------------------------------------------------------------------------------
+*.log
+*.tmp
+*.bak
+*.swp
+*.swo
+*~
+tmp/
+temp/
+
+# ------------------------------------------------------------------------------
+# 9. Operating System & IDE Files
+# ------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Linux
+.directory
+
+# IDEs & Code Editors
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+*.suo
+*.ntvs*
+*.njsproj
+*.sln

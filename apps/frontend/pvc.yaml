@@ -1,0 +1,22 @@
+# apps/frontend/pvc.yaml
+# Frontend apps are typically stateless — no PVC needed.
+# If you serve user-uploaded content from the same pod (not recommended),
+# use this PVC. Prefer Amazon S3 for user uploads.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: frontend-pvc
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    note: "Typically not needed for frontend — prefer S3 for static assets"
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: ebs-gp3
+  resources:
+    requests:
+      storage: 5Gi

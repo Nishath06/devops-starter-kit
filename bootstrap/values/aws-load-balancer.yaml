@@ -1,0 +1,56 @@
+# bootstrap/values/aws-load-balancer.yaml
+# ------------------------------------------------------------------------------
+# Helm values for AWS Load Balancer Controller (eks/aws-load-balancer-controller).
+# Reference: https://github.com/aws/eks-charts/blob/master/stable/aws-load-balancer-controller/values.yaml
+#
+# IMPORTANT: Before installing, you must:
+#   1. Create the IAM policy: AWSLoadBalancerControllerIAMPolicy
+#      (See: https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html)
+#   2. Create an IAM role with that policy and associate it with the ServiceAccount via IRSA.
+#   3. Export LBC_IAM_ROLE_ARN and pass it via --set at install time (handled by install.sh).
+# ------------------------------------------------------------------------------
+
+# clusterName is passed via --set at install time from $CLUSTER_NAME
+# clusterName: my-eks-cluster
+
+replicaCount: 2
+
+serviceAccount:
+  create: true
+  name: aws-load-balancer-controller
+  annotations:
+    # IRSA annotation — value is injected by install.sh via --set
+    # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/aws-load-balancer-controller
+    {}
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Restrict the controller to watch only specific namespaces (empty = all)
+# watchNamespace: ""
+
+# AWS region — auto-detected from EC2 metadata when empty
+# region: us-east-1
+
+# VPC ID — auto-detected when empty; set explicitly if auto-detection fails
+# vpcId: vpc-XXXXXXXX
+
+podDisruptionBudget:
+  maxUnavailable: 1
+
+# Enable Shield and WAF integrations (requires appropriate IAM permissions)
+enableShield: false
+enableWaf: false
+enableWafv2: false
+
+# Default ingress class
+ingressClass: alb
+createIngressClassResource: true
+
+# Logging
+logLevel: info

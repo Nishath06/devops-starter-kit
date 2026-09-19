@@ -1,0 +1,32 @@
+# apps/backend/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+    # Enable Prometheus scraping via ServiceMonitor
+    monitoring: enabled
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "9090"
+    prometheus.io/path: "/metrics"
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: backend
+    app.kubernetes.io/component: backend
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http        # References the named port in the Deployment
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: metrics

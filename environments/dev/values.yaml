@@ -1,0 +1,30 @@
+# environments/dev/values.yaml
+# ------------------------------------------------------------------------------
+# Development environment values — used by ArgoCD ApplicationSet.
+# GitOps workflow: GitHub Actions updates ONLY image.tag via PR.
+# ------------------------------------------------------------------------------
+
+global:
+  environment: dev
+
+image:
+  tag: "latest"                    # Updated by GitHub Actions CI pipeline
+
+replicaCount: 1
+
+ingress:
+  hosts:
+    - host: api-dev.example.com    # CHANGE: dev hostname
+      paths:
+        - path: /
+          pathType: Prefix
+
+config:
+  APP_ENV: "dev"
+  LOG_LEVEL: "debug"
+
+autoscaling:
+  enabled: false
+
+podDisruptionBudget:
+  enabled: false

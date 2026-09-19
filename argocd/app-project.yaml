@@ -1,0 +1,128 @@
+# argocd/app-project.yaml
+# ------------------------------------------------------------------------------
+# ArgoCD AppProject — scopes access for all platform applications.
+# Enforces least-privilege: restricts which repos, clusters, and namespaces
+# ArgoCD can deploy to.
+#
+# Usage:
+#   kubectl apply -f argocd/app-project.yaml -n argocd
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: platform-project
+    app.kubernetes.io/component: gitops
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  description: "Platform project — manages all infrastructure and application workloads"
+
+  # -------------------------------------------------------------------
+  # Allowed source repositories
+  # Add all repositories that contain manifests for this project
+  # -------------------------------------------------------------------
+  sourceRepos:
+    - https://github.com/YOUR_ORG/devops-starter-kit   # This repository
+    # - https://github.com/YOUR_ORG/app-repo           # Application repositories
+
+  # -------------------------------------------------------------------
+  # Allowed destination clusters and namespaces
+  # -------------------------------------------------------------------
+  destinations:
+    # In-cluster deployments
+    - server: https://kubernetes.default.svc
+      namespace: argocd
+    - server: https://kubernetes.default.svc
+      namespace: monitoring
+    - server: https://kubernetes.default.svc
+      namespace: external-secrets
+    - server: https://kubernetes.default.svc
+      namespace: kube-system
+    - server: https://kubernetes.default.svc
+      namespace: apps               # Default application namespace
+    - server: https://kubernetes.default.svc
+      namespace: platform
+    - server: https://kubernetes.default.svc
+      namespace: apps-dev           # Environment-specific namespaces
+    - server: https://kubernetes.default.svc
+      namespace: apps-staging
+    - server: https://kubernetes.default.svc
+      namespace: apps-prod
+    # Add additional namespaces as needed
+
+  # -------------------------------------------------------------------
+  # Cluster-scoped resource access
+  # -------------------------------------------------------------------
+  clusterResourceWhitelist:
+    - group: ""
+      kind: Namespace
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRole
+    - group: "rbac.authorization.k8s.io"
+      kind: ClusterRoleBinding
+    - group: "storage.k8s.io"
+      kind: StorageClass
+    - group: "networking.k8s.io"
+      kind: IngressClass
+    - group: "scheduling.k8s.io"
+      kind: PriorityClass
+    - group: "apiextensions.k8s.io"
+      kind: CustomResourceDefinition
+    - group: "monitoring.coreos.com"
+      kind: PrometheusRule
+
+  # -------------------------------------------------------------------
+  # Namespace-scoped resource allow-list (implicit: all namespace resources)
+  # -------------------------------------------------------------------
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
+
+  # -------------------------------------------------------------------
+  # Namespace-scoped resource deny-list
+  # Prevent accidental deletion of critical resources
+  # -------------------------------------------------------------------
+  # namespaceResourceBlacklist:
+  #   - group: ""
+  #     kind: ResourceQuota
+
+  # -------------------------------------------------------------------
+  # RBAC for this project
+  # -------------------------------------------------------------------
+  roles:
+    - name: platform-admin
+      description: "Full admin access to the platform project"
+      policies:
+        - p, proj:platform:platform-admin, applications, *, platform/*, allow
+      groups:
+        - platform-team   # Map to your OIDC group
+
+    - name: platform-viewer
+      description: "Read-only access to the platform project"
+      policies:
+        - p, proj:platform:platform-viewer, applications, get, platform/*, allow
+      groups:
+        - developers      # Map to your OIDC group
+
+  # -------------------------------------------------------------------
+  # Sync windows — restrict deployments to business hours in prod
+  # -------------------------------------------------------------------
+  syncWindows:
+    # Allow all syncs in dev (override this per-environment)
+    - kind: allow
+      schedule: "* * * * *"   # Always allow
+      duration: 24h
+      applications:
+        - "*-dev"
+        - "*-staging"
+    # Restrict prod deployments to business hours (Mon-Fri, 09:00-17:00 UTC)
+    - kind: allow
+      schedule: "0 9 * * 1-5"
+      duration: 8h
+      applications:
+        - "*-prod"
+      manualSync: true   # Allow manual sync outside window

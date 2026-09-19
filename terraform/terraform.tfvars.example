@@ -1,0 +1,70 @@
+# =============================================================================
+# terraform.tfvars.example — Example Variable Definitions
+# =============================================================================
+# Copy this file to terraform.tfvars and customize the values for your project:
+#   cp terraform.tfvars.example terraform.tfvars
+# =============================================================================
+
+aws_region   = "ap-south-1"
+environment  = "prod"
+project_name = "devops-starter-kit"
+cluster_name = "production-eks-cluster"
+
+# Kubernetes Version (EKS v1.33)
+cluster_version = "1.33"
+
+# Networking (VPC & Subnets)
+vpc_cidr        = "10.0.0.0/16"
+public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnets = ["10.0.10.0/24", "10.0.20.0/24"]
+
+# NAT Gateway Strategy:
+# false = High Availability (1 NAT Gateway per AZ, Recommended for Production)
+# true  = Cost Savings (1 NAT Gateway shared across all AZs, For Dev/Test)
+single_nat_gateway   = false
+enable_vpc_flow_logs = false
+
+# EKS API Server Endpoint Access
+cluster_endpoint_public_access       = true
+cluster_endpoint_private_access      = true
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+
+# Control Plane Logging
+cluster_log_types             = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+cluster_log_retention_in_days = 30
+
+# Envelope Encryption of Kubernetes Secrets via AWS KMS
+enable_encryption  = false
+encryption_key_arn = ""
+
+# Managed Node Group Configuration
+node_group_name     = "general-workers"
+node_instance_types = ["t3.medium"]
+node_ami_type       = "AL2023_x86_64_STANDARD"
+node_capacity_type  = "ON_DEMAND"
+node_disk_size      = 50
+
+node_scaling_config = {
+  desired_size = 2
+  min_size     = 2
+  max_size     = 5
+}
+
+node_labels = {
+  role        = "worker"
+  environment = "prod"
+}
+
+node_taints = []
+
+# Amazon Elastic Container Registry (ECR)
+ecr_repositories         = ["backend", "frontend", "ai-model", "worker"]
+ecr_image_tag_mutability = "MUTABLE"
+ecr_scan_on_push         = true
+ecr_max_image_count      = 10
+
+# Additional Global Tags
+tags = {
+  CostCenter = "DevOps"
+  Compliance = "PCI-DSS-Ready"
+}

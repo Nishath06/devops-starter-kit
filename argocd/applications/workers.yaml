@@ -1,0 +1,51 @@
+# argocd/applications/workers.yaml
+# ------------------------------------------------------------------------------
+# ArgoCD Application: Background Worker Services
+# Manages: apps/worker/ (and apps/cronjob/ — both are background workers)
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: workers
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: workers
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+
+  sources:
+    - repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+      targetRevision: HEAD
+      path: apps/worker
+    - repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+      targetRevision: HEAD
+      path: apps/cronjob
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

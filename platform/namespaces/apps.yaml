@@ -1,0 +1,29 @@
+# platform/namespaces/apps.yaml
+# ------------------------------------------------------------------------------
+# Namespace for all application workloads.
+# Customise labels and annotations to match your organisation's standards.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: apps
+  labels:
+    # Kubernetes recommended labels
+    app.kubernetes.io/managed-by: argocd
+    # Environment — change per namespace variant (apps-dev, apps-staging, apps-prod)
+    environment: dev
+    project: starter
+    # Pod Security Standards — "restricted" is the most secure; use "baseline" for broad compatibility
+    # See: https://kubernetes.io/docs/concepts/security/pod-security-standards/
+    pod-security.kubernetes.io/enforce: baseline
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+  annotations:
+    # Indicate that this namespace is GitOps managed
+    argocd.argoproj.io/managed-by: argocd
+    # Human-readable description
+    description: "Application workloads namespace"
+    # Owner/team for accountability
+    team: platform-engineering
+    # Cost allocation tag (matches AWS resource tag)
+    cost-center: "platform"

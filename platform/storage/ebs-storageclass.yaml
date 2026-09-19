@@ -1,0 +1,67 @@
+# platform/storage/ebs-storageclass.yaml
+# ------------------------------------------------------------------------------
+# AWS EBS StorageClass — GP3 (recommended for most workloads).
+# Applications switch storage type by referencing a different storageClassName only.
+#
+# EBS volumes are:
+#   - AZ-specific (pod must be in same AZ as the volume)
+#   - ReadWriteOnce only (single pod at a time)
+#   - Best for: databases, message queues, persistent caches
+#
+# Prerequisites: aws-ebs-csi-driver must be installed (bootstrap/install.sh).
+# ------------------------------------------------------------------------------
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp3
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+  annotations:
+    # Set as default StorageClass for the cluster (remove if you prefer explicit selection)
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer   # Wait until pod is scheduled to know which AZ to create volume in
+reclaimPolicy: Delete                      # CHANGE to "Retain" in production to prevent accidental data loss
+allowVolumeExpansion: true                 # Allow resizing without downtime
+parameters:
+  type: gp3                                # General Purpose SSD v3 — best cost/performance
+  iops: "3000"                             # Baseline IOPS (gp3 range: 3000–16000)
+  throughput: "125"                        # MB/s throughput (gp3 range: 125–1000)
+  encrypted: "true"                        # Encrypt EBS volumes at rest (AWS KMS)
+  # kmsKeyId: arn:aws:kms:REGION:ACCOUNT:key/KEY_ID  # CHANGE: Use a specific KMS key
+
+---
+# GP2 StorageClass (legacy — kept for compatibility)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-gp2
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+allowVolumeExpansion: true
+parameters:
+  type: gp2
+  encrypted: "true"
+
+---
+# IO1 StorageClass (for high IOPS workloads — databases like RDS alternatives)
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: ebs-io1
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+provisioner: ebs.csi.aws.com
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain                     # Retain for high-IOPS production data
+allowVolumeExpansion: true
+parameters:
+  type: io1
+  iopsPerGB: "50"                         # Up to 64,000 IOPS for io1
+  encrypted: "true"

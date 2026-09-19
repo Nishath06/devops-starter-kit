@@ -1,0 +1,121 @@
+# bootstrap/values/argocd.yaml
+# ------------------------------------------------------------------------------
+# Helm values for ArgoCD (argo/argo-cd chart).
+# Customise these for your environment.
+# Reference: https://github.com/argoproj/argo-helm/blob/main/charts/argo-cd/values.yaml
+# ------------------------------------------------------------------------------
+
+global:
+  # Set to your domain for ingress
+  domain: argocd.example.com
+
+## ArgoCD Server
+server:
+  replicas: 2
+
+  # Expose via ALB — change to NodePort or LoadBalancer if preferred
+  service:
+    type: ClusterIP
+
+  ingress:
+    enabled: false          # Enable and configure after ALB controller is ready
+    ingressClassName: alb
+    annotations:
+      alb.ingress.kubernetes.io/scheme: internet-facing
+      alb.ingress.kubernetes.io/target-type: ip
+      alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}]'
+      alb.ingress.kubernetes.io/ssl-redirect: '443'
+      # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID
+    hosts:
+      - argocd.example.com
+
+  # Disable TLS from ArgoCD server itself when behind ALB (ALB handles TLS)
+  extraArgs:
+    - --insecure
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## Application Controller
+controller:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+
+## Repo Server
+repoServer:
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+## ApplicationSet Controller
+applicationSet:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+## Redis
+redis:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 128Mi
+
+## Dex (SSO) — disable if not using OIDC
+dex:
+  enabled: true
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+## Notifications
+notifications:
+  enabled: true
+
+## Config
+configs:
+  params:
+    # Allow insecure connections from the UI when behind an ALB
+    server.insecure: "true"
+  cm:
+    # URL used in notifications and UI links — set to your actual domain
+    url: https://argocd.example.com
+    # Add SSO configuration here if using OIDC
+    # oidc.config: |
+    #   name: Okta
+    #   issuer: https://YOUR_ORG.okta.com
+    #   clientID: $oidc.okta.clientId
+    #   clientSecret: $oidc.okta.clientSecret
+  rbac:
+    # Default policy: read-only for all users
+    policy.default: role:readonly
+    # Admin access for specific groups
+    # policy.csv: |
+    #   g, platform-team, role:admin

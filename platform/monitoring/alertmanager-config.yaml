@@ -1,0 +1,88 @@
+# platform/monitoring/alertmanager-config.yaml
+# ------------------------------------------------------------------------------
+# AlertmanagerConfig — namespace-scoped Alertmanager routing and receivers.
+# Allows application teams to configure their own alert routing without touching
+# the global Alertmanager configuration.
+#
+# This config routes alerts from the "apps" namespace to Slack/PagerDuty.
+# The global Alertmanager config (in bootstrap/values/prometheus.yaml) sets up
+# the default receiver.
+#
+# Reference: https://prometheus-operator.dev/docs/operator/alerting/
+# ------------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: AlertmanagerConfig
+metadata:
+  name: starter-app-alerts
+  namespace: apps                   # Deploy in the application namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/managed-by: argocd
+    # Must match Alertmanager CR alertmanagerConfigSelector
+    release: kube-prometheus-stack
+    project: starter
+spec:
+  route:
+    groupBy: ['alertname', 'namespace', 'severity']
+    groupWait: 30s
+    groupInterval: 5m
+    repeatInterval: 4h
+    receiver: slack-notifications   # Default receiver for this namespace
+
+    routes:
+      # Critical alerts → PagerDuty (immediate response)
+      - matchers:
+          - name: severity
+            value: critical
+        receiver: pagerduty-critical
+        groupWait: 10s
+        repeatInterval: 1h
+
+      # Warning alerts → Slack
+      - matchers:
+          - name: severity
+            value: warning
+        receiver: slack-notifications
+
+  receivers:
+    # ---- Slack receiver (uncomment and configure) ---------------------------
+    - name: slack-notifications
+      slackConfigs:
+        - apiURL:
+            # Store the webhook URL in a Kubernetes Secret, not here
+            name: alertmanager-slack-secret  # CHANGE: Secret name
+            key: webhook-url
+          channel: "#alerts"               # CHANGE: your Slack channel
+          username: "Prometheus"
+          iconEmoji: ":bell:"
+          title: |-
+            [{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .CommonLabels.alertname }}
+          text: |-
+            {{ range .Alerts }}
+            *Alert:* {{ .Annotations.summary }}
+            *Description:* {{ .Annotations.description }}
+            *Severity:* {{ .Labels.severity }}
+            *Namespace:* {{ .Labels.namespace }}
+            {{ end }}
+          sendResolved: true
+
+    # ---- PagerDuty receiver (uncomment and configure) -----------------------
+    - name: pagerduty-critical
+      pagerdutyConfigs:
+        - routingKey:
+            name: alertmanager-pagerduty-secret  # CHANGE: Secret name
+            key: routing-key
+          severity: critical
+          description: |-
+            {{ .CommonAnnotations.summary }}
+          details:
+            namespace: "{{ .CommonLabels.namespace }}"
+            environment: "{{ .CommonLabels.environment }}"
+
+# ------------------------------------------------------------------------------
+# Required Secret for Slack webhook (apply separately — do NOT commit secrets):
+# kubectl create secret generic alertmanager-slack-secret \
+#   --from-literal=webhook-url='https://hooks.slack.com/services/...' \
+#   -n apps
+# ------------------------------------------------------------------------------

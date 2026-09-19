@@ -1,0 +1,23 @@
+# platform/security/rolebinding.yaml
+# ------------------------------------------------------------------------------
+# Reusable RoleBinding — binds a Role to a ServiceAccount in the same namespace.
+# ------------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: starter-app-rolebinding     # CHANGE: <app-name>-rolebinding
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: security
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+subjects:
+  - kind: ServiceAccount
+    name: starter-app-sa            # CHANGE: ServiceAccount name (must match serviceaccount.yaml)
+    namespace: apps                 # CHANGE: ServiceAccount namespace
+roleRef:
+  kind: Role
+  name: starter-app-role           # CHANGE: Role name (must match role.yaml)
+  apiGroup: rbac.authorization.k8s.io

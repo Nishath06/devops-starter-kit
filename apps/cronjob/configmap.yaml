@@ -1,0 +1,27 @@
+# apps/cronjob/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cronjob-config
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+data:
+  APP_ENV: "dev"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  AWS_REGION: "us-east-1"
+
+  # ---- Job-specific configuration ------------------------------------------
+  REPORT_OUTPUT_BUCKET: "my-reports-bucket"  # CHANGE: S3 bucket for job outputs
+  REPORT_PREFIX: "daily/"
+  NOTIFICATION_EMAIL: "ops@example.com"      # CHANGE: notification recipient
+
+  # ---- Database config -----------------------------------------------------
+  DB_HOST: "rds.example.internal"
+  DB_PORT: "5432"
+  DB_NAME: "appdb"

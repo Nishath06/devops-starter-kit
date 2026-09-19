@@ -1,0 +1,82 @@
+# apps/cronjob/deployment.yaml
+# ------------------------------------------------------------------------------
+# Scheduled Job Runner Deployment Template.
+#
+# NOTE: In Kubernetes, scheduled workloads typically use CronJob (`cronjob.yaml`).
+# Use this Deployment manifest when:
+#   1. Running an internal task scheduler daemon (e.g. Airflow scheduler, Celery Beat, APScheduler)
+#   2. Long-running batch coordinator that schedules distributed jobs
+#   3. You want a single continuously running pod with rolling update guarantees
+#      instead of short-lived batch pods.
+#
+# If using `cronjob.yaml`, leave this deployment disabled or scaled to replicas: 0.
+# ------------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cronjob-runner
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/version: "1.0.0"
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate                       # Prevent overlapping cron runner instances
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: starter-cronjob
+      app.kubernetes.io/component: cronjob
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: starter-cronjob
+        app.kubernetes.io/component: cronjob
+        environment: dev
+    spec:
+      serviceAccountName: cronjob-sa
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: cronjob-runner
+          image: <AWS_ACCOUNT_ID>.dkr.ecr.<AWS_REGION>.amazonaws.com/starter-cronjob:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "scheduler.run"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          envFrom:
+            - configMapRef:
+                name: cronjob-config
+            - secretRef:
+                name: cronjob-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: reports-storage
+              mountPath: /app/reports
+      volumes:
+        - name: tmp
+          emptyDir: {}
+        - name: reports-storage
+          persistentVolumeClaim:
+            claimName: cronjob-pvc

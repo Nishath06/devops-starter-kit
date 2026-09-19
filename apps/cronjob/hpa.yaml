@@ -1,0 +1,40 @@
+# apps/cronjob/hpa.yaml
+# ------------------------------------------------------------------------------
+# HorizontalPodAutoscaler for Batch / Scheduled Worker Runner.
+#
+# NOTE: Kubernetes native `batch/v1 CronJob` manages concurrency using
+# `concurrencyPolicy: Allow | Forbid | Replace` and DOES NOT use HPA directly.
+#
+# This HPA is applicable when running the `cronjob-runner` Deployment (e.g.
+# a dynamic batch queue processor where load increases with pending scheduled tasks).
+# ------------------------------------------------------------------------------
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: cronjob-hpa
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: cronjob-runner
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 75
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

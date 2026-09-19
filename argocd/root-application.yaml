@@ -1,0 +1,58 @@
+# argocd/root-application.yaml
+# ------------------------------------------------------------------------------
+# App-of-Apps Root Application.
+# This is the single entry-point for the entire GitOps platform.
+# Deploy this FIRST — it will bootstrap all other ArgoCD Applications.
+#
+# Usage:
+#   kubectl apply -f argocd/root-application.yaml -n argocd
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-application
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: root-application
+    app.kubernetes.io/component: gitops
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-10"   # Apply before all child apps
+  finalizers:
+    # Cascade delete — removes all child apps when this app is deleted
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+
+  source:
+    # ------------------------------------------------------------------
+    # CHANGE THIS to your actual repository URL
+    # ------------------------------------------------------------------
+    repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+    targetRevision: HEAD   # Track the default branch; pin to a tag in prod
+
+    # Watch the argocd/applications/ directory — any Application CRD placed here
+    # will be automatically discovered and deployed.
+    path: argocd/applications
+
+  destination:
+    server: https://kubernetes.default.svc   # in-cluster
+    namespace: argocd
+
+  syncPolicy:
+    automated:
+      prune: true        # Remove resources deleted from Git
+      selfHeal: true     # Revert manual changes to match Git state
+      allowEmpty: false  # Fail if the source path is empty
+    syncOptions:
+      - CreateNamespace=true          # Auto-create namespaces
+      - PrunePropagationPolicy=foreground
+      - PruneLast=true                # Prune after sync completes
+      - ApplyOutOfSyncOnly=true       # Only sync resources that are out-of-sync
+      - ServerSideApply=true          # Use server-side apply for large manifests
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m

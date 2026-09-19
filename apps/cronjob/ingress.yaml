@@ -1,0 +1,39 @@
+# apps/cronjob/ingress.yaml
+# ------------------------------------------------------------------------------
+# Ingress for CronJob / Batch triggers and scheduler dashboards.
+#
+# Optional: Use when you need:
+#   1. Webhook endpoint to trigger ad-hoc batch runs (e.g. /trigger/job)
+#   2. Web UI for batch inspection or report downloads
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cronjob
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internal                  # Batch endpoints should usually be internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERT_ID
+spec:
+  ingressClassName: alb
+  rules:
+    - host: batch.internal.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: cronjob
+                port:
+                  number: 9091

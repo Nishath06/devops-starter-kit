@@ -1,0 +1,79 @@
+# platform/policies/limitrange.yaml
+# ------------------------------------------------------------------------------
+# LimitRange — sets default and maximum resource requests/limits per container.
+# Applied automatically to any pod/container that doesn't specify resources.
+#
+# Without LimitRange, developers often forget to set resources, leading to:
+#   - Unbounded containers consuming all node resources
+#   - OOMKills when memory is exhausted
+#   - HPA inability to function (HPA requires resource requests)
+#
+# Recommendation: Apply LimitRange to every namespace.
+# ------------------------------------------------------------------------------
+
+# --- Apps Namespace LimitRange -----------------------------------------------
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: apps-limits
+  namespace: apps                   # CHANGE: apply to your target namespace
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  limits:
+    # --- Container limits (applied to each container) ----------------------
+    - type: Container
+      default:                      # Applied when no limits are specified
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:               # Applied when no requests are specified
+        cpu: 100m
+        memory: 128Mi
+      max:                          # Hard ceiling — containers cannot exceed this
+        cpu: "4"
+        memory: 4Gi
+      min:                          # Minimum required — containers must request at least this
+        cpu: 10m
+        memory: 16Mi
+
+    # --- Pod limits (sum of all containers in the pod) ---------------------
+    - type: Pod
+      max:
+        cpu: "8"
+        memory: 8Gi
+
+    # --- PVC limits (per PersistentVolumeClaim) ----------------------------
+    - type: PersistentVolumeClaim
+      max:
+        storage: 100Gi
+      min:
+        storage: 1Gi
+
+---
+# --- Monitoring Namespace LimitRange ------------------------------------------
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: monitoring-limits
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: platform
+    project: starter
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 512Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+      max:
+        cpu: "4"
+        memory: 8Gi                 # Prometheus can be memory-intensive
+      min:
+        cpu: 10m
+        memory: 32Mi

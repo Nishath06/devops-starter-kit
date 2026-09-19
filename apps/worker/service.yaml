@@ -1,0 +1,26 @@
+# apps/worker/service.yaml
+# Workers typically don't need a Service (they pull from queues).
+# This Service is for Prometheus metrics scraping only.
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+    monitoring: enabled
+spec:
+  type: ClusterIP
+  clusterIP: None              # Headless — no load balancing needed, just DNS for Prometheus
+  selector:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+  ports:
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: metrics

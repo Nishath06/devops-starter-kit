@@ -1,0 +1,64 @@
+# platform/policies/resourcequota.yaml
+# ------------------------------------------------------------------------------
+# ResourceQuota — limits total resource consumption in a namespace.
+# Prevents one team/application from starving others on shared clusters.
+#
+# Apply per-namespace. Copy and customise for each environment:
+#   - dev: relaxed limits
+#   - staging: moderate limits
+#   - prod: production-grade limits
+#
+# Quota is enforced at admission time — pods exceeding quota are rejected.
+# ------------------------------------------------------------------------------
+
+# --- Development Namespace Quota -------------------------------------------
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: apps-quota
+  namespace: apps                   # CHANGE: apply to your target namespace
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  hard:
+    # --- Compute resources --------------------------------------------------
+    requests.cpu: "4"               # Total CPU requests across all pods
+    requests.memory: 8Gi            # Total memory requests
+    limits.cpu: "8"                 # Total CPU limits
+    limits.memory: 16Gi             # Total memory limits
+
+    # --- Object count limits ------------------------------------------------
+    pods: "50"                      # Max pods in namespace
+    services: "20"                  # Max services
+    persistentvolumeclaims: "10"    # Max PVCs
+    secrets: "30"                   # Max secrets
+    configmaps: "30"                # Max configmaps
+
+    # --- LoadBalancer services (expensive!) ---------------------------------
+    services.loadbalancers: "2"     # Limit ALB/NLB provisioning costs
+
+    # --- Storage quota ------------------------------------------------------
+    requests.storage: "100Gi"       # Total PVC storage requested
+
+---
+# --- Monitoring Namespace Quota --------------------------------------------
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: monitoring-quota
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    environment: platform
+    project: starter
+spec:
+  hard:
+    requests.cpu: "4"
+    requests.memory: 8Gi
+    limits.cpu: "8"
+    limits.memory: 16Gi
+    pods: "30"
+    requests.storage: "50Gi"
+    persistentvolumeclaims: "5"

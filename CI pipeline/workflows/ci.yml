@@ -1,0 +1,430 @@
+# ==============================================================================
+# DevOps Starter Kit — Production Plain ArgoCD GitOps CI Pipeline
+# Multi-Service Architecture: Frontend (React/Vite) & Backend (FastAPI)
+# ==============================================================================
+# Pipeline Flow:
+#   Developer Push
+#   ➔ Setup & Pytest (Backend)
+#   ➔ Setup & Build (Frontend)
+#   ➔ Docker Build (Backend & Frontend)
+#   ➔ Trivy Vulnerability Scan (Backend & Frontend)
+#   ➔ Push Images to Docker Hub (Backend & Frontend)
+#   ➔ Clone GitOps Infrastructure Repository
+#   ➔ Update Backend & Frontend Deployment Manifests (yq)
+#   ➔ Commit Both Manifests & Push Feature Branch
+#   ➔ Create Pull Request (gh)
+#   ➔ STOP
+#
+# GitOps Principles Enforced:
+#   - CI stops immediately after opening the Pull Request in the infrastructure repo.
+#   - ArgoCD monitors the infrastructure repository and synchronizes automatically on merge.
+#   - Zero direct cluster access: no kubectl, terraform, or argocd CLI commands run in CI.
+#   - Plain Kubernetes YAML manifests applied directly by ArgoCD (No Helm).
+#
+# Required GitHub Secrets:
+#   - DOCKER_USERNAME : Docker Hub username (e.g., nishathjp).
+#   - DOCKER_TOKEN    : Docker Hub Personal Access Token (PAT) with Read/Write access.
+#   - GH_PAT          : GitHub Personal Access Token ('repo' scope) with write permissions to GITOPS_REPO.
+# ==============================================================================
+
+name: CI Pipeline (Plain ArgoCD GitOps)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+# ------------------------------------------------------------------------------
+# Global Pipeline Variables
+# ------------------------------------------------------------------------------
+env:
+  BACKEND_IMAGE: "docker.io/nishathjp/devops-starter-kit-backend"
+  FRONTEND_IMAGE: "docker.io/nishathjp/devops-starter-kit-frontend"
+  #for AWS ECR, uncomment the following lines and set your AWS_ACCOUNT_ID and AWS_REGION in GitHub Secrets
+  
+  # AWS_REGION: ap-south-1
+  
+  # BACKEND_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/devops-starter-kit-backend
+
+  # FRONTEND_IMAGE: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/devops-starter-kit-frontend
+  GITOPS_REPO: "Nishath06/devops-starter-kit-infrastructure"
+  BACKEND_MANIFEST: "apps/backend/deployment.yaml"
+  FRONTEND_MANIFEST: "apps/frontend/deployment.yaml"
+  BASE_BRANCH: "main"
+
+jobs:
+  pipeline:
+    name: Build, Test & GitOps Delivery
+    runs-on: ubuntu-latest
+
+    steps:
+      # ========================================================================
+      # Stage 1 — Checkout Repository
+      # ========================================================================
+      - name: Stage 1 — Checkout Repository
+        uses: actions/checkout@v4
+
+      # ========================================================================
+      # Stage 2 — Display Commit SHA
+      # ========================================================================
+      - name: Stage 2 — Display Commit SHA
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "IMAGE_TAG=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "=================================================="
+          echo "  Repository : ${{ github.repository }}"
+          echo "  Commit SHA : ${SHORT_SHA}"
+          echo "  Git Branch : ${{ github.ref_name }}"
+          echo "=================================================="
+
+      # ========================================================================
+      # Stage 3 — Setup Python 3.12
+      # ========================================================================
+      - name: Stage 3 — Setup Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      # ========================================================================
+      # Stage 4 — Install Backend Dependencies
+      # ========================================================================
+      - name: Stage 4 — Install Backend Dependencies
+        run: |
+          echo "Installing Python dependencies for FastAPI backend..."
+          python -m pip install --upgrade pip
+          if [ -f "backend/requirements.txt" ]; then
+            pip install -r backend/requirements.txt
+          elif [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          fi
+          pip install pytest pytest-cov
+
+      # ========================================================================
+      # Stage 5 — Run Backend Pytest
+      # ========================================================================
+      - name: Stage 5 — Run Backend Pytest
+        run: |
+          echo "Running backend unit tests with pytest..."
+          if [ -d "backend/tests" ]; then
+            pytest -v backend/tests
+          elif [ -d "tests" ]; then
+            pytest -v tests
+          else
+            pytest -v
+          fi
+
+      # ========================================================================
+      # Stage 6 — Setup Node.js (LTS 22)
+      # ========================================================================
+      - name: Stage 6 — Setup Node.js (LTS 22)
+        uses: actions/setup-node@v4
+        with:
+        node-version: "22"
+        cache: "npm"
+        cache-dependency-path: "frontend/package-lock.json"
+
+      # ========================================================================
+      # Stage 7 — Install Frontend Dependencies
+      # ========================================================================
+      - name: Stage 7 — Install Frontend Dependencies
+        working-directory: frontend
+        run: |
+          echo "Installing npm dependencies for React frontend..."
+          npm ci
+
+      # ========================================================================
+      # Stage 8 — Build Frontend
+      # ========================================================================
+      - name: Stage 8 — Build Frontend
+        working-directory: frontend
+        run: |
+          echo "Building React frontend with Vite..."
+          npm run build
+          
+      # ========================================================================
+      # Stage 9 — Build Backend Docker Image
+      # ========================================================================
+      - name: Stage 9 — Build Backend Docker Image
+        run: |
+          echo "Building backend Docker image tags: ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }} and latest..."
+          if [ -f "backend/Dockerfile" ]; then
+            docker build \
+              -t "${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}" \
+              -t "${{ env.BACKEND_IMAGE }}:latest" \
+              -f backend/Dockerfile backend/
+          elif [ -f "Dockerfile" ]; then
+            docker build \
+              -t "${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}" \
+              -t "${{ env.BACKEND_IMAGE }}:latest" \
+              .
+          else
+            echo "Error: Dockerfile for backend not found!" && exit 1
+          fi
+
+      # ========================================================================
+      # Stage 10 — Build Frontend Docker Image
+      # ========================================================================
+      - name: Stage 10 — Build Frontend Docker Image
+        run: |
+          echo "Building frontend Docker image tags: ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }} and latest..."
+          if [ -f "frontend/Dockerfile" ]; then
+            docker build \
+              -t "${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}" \
+              -t "${{ env.FRONTEND_IMAGE }}:latest" \
+              -f frontend/Dockerfile frontend/
+          else
+            echo "Error: Dockerfile for frontend not found!" && exit 1
+          fi
+
+      # ========================================================================
+      # Stage 11 — Trivy Scan Backend Image
+      # ========================================================================
+      - name: Stage 11 — Trivy Scan Backend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}"
+          format: "table"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: false
+
+      # ========================================================================
+      # Stage 12 — Trivy Scan Frontend Image
+      # ========================================================================
+      - name: Stage 12 — Trivy Scan Frontend Image
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}"
+          format: "table"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+          ignore-unfixed: false
+
+      
+      # # Stage 13 — Configure AWS Credentials
+      # - name: Stage 13 — Configure AWS Credentials
+      #   if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      #     aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      #     aws-region: ${{ secrets.AWS_REGION }}
+
+      # Stage 14 — Login to Amazon ECR
+      # - name: Stage 14 — Login to Amazon ECR
+      #   if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v2
+
+      # # Stage 15 — Push Backend Image to Amazon ECR
+      # - name: Stage 15 — Push Backend Image to Amazon ECR
+      #   if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+      #   run: |
+      #     echo "Pushing backend image to Amazon ECR..."
+
+      #     docker push "${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}"
+      #     docker push "${{ env.BACKEND_IMAGE }}:latest"
+
+      # # Stage 16 — Push Frontend Image to Amazon ECR
+      # - name: Stage 16 — Push Frontend Image to Amazon ECR
+      #   if: github.ref == 'refs/heads/main' || github.event_name == 'workflow_dispatch'
+      #   run: |
+      #   echo "Pushing frontend image to Amazon ECR..."
+
+      #   docker push "${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}"
+      #   docker push "${{ env.FRONTEND_IMAGE }}:latest"
+
+
+      # ========================================================================
+      # Stage 13 — Docker Hub Login
+      # ========================================================================
+      - name: Stage 13 — Docker Hub Login
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+
+      # ========================================================================
+      # Stage 14 — Push Backend Image
+      # ========================================================================
+      - name: Stage 14 — Push Backend Image
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Pushing backend image tags to Docker Hub..."
+          docker push "${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}"
+          docker push "${{ env.BACKEND_IMAGE }}:latest"
+
+      # ========================================================================
+      # Stage 15 — Push Frontend Image
+      # ========================================================================
+      - name: Stage 15 — Push Frontend Image
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Pushing frontend image tags to Docker Hub..."
+          docker push "${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}"
+          docker push "${{ env.FRONTEND_IMAGE }}:latest"
+
+      # ========================================================================
+      # Stage 16 — Install yq
+      # ========================================================================
+      - name: Stage 16 — Install yq
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        run: |
+          if ! command -v yq &>/dev/null; then
+            echo "Installing yq..."
+            sudo wget -qO /usr/local/bin/yq https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            sudo chmod +x /usr/local/bin/yq
+          fi
+          yq --version
+
+      # ========================================================================
+      # Stage 17 — Install GitHub CLI
+      # ========================================================================
+      - name: Stage 17 — Install GitHub CLI
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        run: |
+          if ! command -v gh &>/dev/null; then
+            echo "GitHub CLI not found. Installing..."
+            sudo apt-get update -qq
+            sudo apt-get install -y gh
+          fi
+          gh --version
+
+      # ========================================================================
+      # Stage 18 — Clone GitOps Repository
+      # ========================================================================
+      - name: Stage 18 — Clone GitOps Repository
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        run: |
+          echo "Cloning GitOps infrastructure repository: ${{ env.GITOPS_REPO }}..."
+          rm -rf infra-repo
+          git clone --depth 1 --branch "${{ env.BASE_BRANCH }}" \
+            "https://x-access-token:${{ secrets.GH_PAT }}@github.com/${{ env.GITOPS_REPO }}.git" infra-repo
+
+      # ========================================================================
+      # Stage 19 — Update Backend Deployment Manifest
+      # ========================================================================
+      - name: Stage 19 — Update Backend Deployment Manifest
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        working-directory: infra-repo
+        env:
+          BACKEND_IMAGE: ${{ env.BACKEND_IMAGE }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          echo "Updating backend deployment (${{ env.BACKEND_MANIFEST }}) with image ${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}..."
+          yq -i '
+          .spec.template.spec.containers =
+          (
+            .spec.template.spec.containers
+            | map(
+                if .name == "backend"
+                then .image = (env(BACKEND_IMAGE) + ":" + env(IMAGE_TAG))
+                else .
+                end
+              )
+          )
+          ' "${{ env.BACKEND_MANIFEST }}"
+
+          echo "--- Git Diff (${{ env.BACKEND_MANIFEST }}) ---"
+          git diff "${{ env.BACKEND_MANIFEST }}"
+
+      # ========================================================================
+      # Stage 20 — Update Frontend Deployment Manifest
+      # ========================================================================
+      - name: Stage 20 — Update Frontend Deployment Manifest
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        working-directory: infra-repo
+        env:
+          FRONTEND_IMAGE: ${{ env.FRONTEND_IMAGE }}
+          IMAGE_TAG: ${{ env.IMAGE_TAG }}
+        run: |
+          echo "Updating frontend deployment (${{ env.FRONTEND_MANIFEST }}) with image ${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}..."
+          yq -i '
+          .spec.template.spec.containers =
+          (
+            .spec.template.spec.containers
+            | map(
+                if .name == "frontend"
+                then .image = (env(FRONTEND_IMAGE) + ":" + env(IMAGE_TAG))
+                else .
+                end
+              )
+          )
+          ' "${{ env.FRONTEND_MANIFEST }}"
+
+          echo "--- Git Diff (${{ env.FRONTEND_MANIFEST }}) ---"
+          git diff "${{ env.FRONTEND_MANIFEST }}"
+
+      # ========================================================================
+      # Stage 21 — Commit both manifest changes
+      # ========================================================================
+      - name: Stage 21 — Commit both manifest changes
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+        working-directory: infra-repo
+        run: |
+          BRANCH_NAME="update/image-${{ env.IMAGE_TAG }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "${BRANCH_NAME}"
+          git add "${{ env.BACKEND_MANIFEST }}" "${{ env.FRONTEND_MANIFEST }}"
+
+          if git diff --cached --quiet; then
+            echo "No manifest changes detected. Both images are already up to date. Skipping commit and PR."
+            echo "CHANGES_COMMITTED=false" >> "$GITHUB_ENV"
+          else
+            git commit -m "chore(gitops): update frontend and backend images to ${{ env.IMAGE_TAG }}"
+            echo "CHANGES_COMMITTED=true" >> "$GITHUB_ENV"
+          fi
+
+      # ========================================================================
+      # Stage 22 — Push feature branch
+      # ========================================================================
+      - name: Stage 22 — Push feature branch
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch') && env.CHANGES_COMMITTED == 'true'
+        working-directory: infra-repo
+        run: |
+          BRANCH_NAME="update/image-${{ env.IMAGE_TAG }}"
+          echo "Pushing feature branch ${BRANCH_NAME} to GitOps repository..."
+          git push origin "${BRANCH_NAME}" --force
+
+      # ========================================================================
+      # Stage 23 — Create Pull Request
+      # ========================================================================
+      - name: Stage 23 — Create Pull Request
+        if: (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch') && env.CHANGES_COMMITTED == 'true'
+        working-directory: infra-repo
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          BRANCH_NAME="update/image-${{ env.IMAGE_TAG }}"
+          echo "Checking for existing Pull Request on branch ${BRANCH_NAME}..."
+
+          EXISTING=$(gh pr list \
+            --repo "${{ env.GITOPS_REPO }}" \
+            --head "${BRANCH_NAME}" \
+            --json number \
+            --jq 'length')
+
+          if [ "${EXISTING}" = "0" ]; then
+            echo "No existing PR found. Creating Pull Request..."
+            gh pr create \
+              --repo "${{ env.GITOPS_REPO }}" \
+              --base "${{ env.BASE_BRANCH }}" \
+              --head "${BRANCH_NAME}" \
+              --title "chore(gitops): update frontend and backend images to ${{ env.IMAGE_TAG }}" \
+              --body "Automated GitOps update for commit \`${{ env.IMAGE_TAG }}\`.\n\n### Updated Deployments:\n- **Backend**: \`${{ env.BACKEND_IMAGE }}:${{ env.IMAGE_TAG }}\` (\`${{ env.BACKEND_MANIFEST }}\`)\n- **Frontend**: \`${{ env.FRONTEND_IMAGE }}:${{ env.IMAGE_TAG }}\` (\`${{ env.FRONTEND_MANIFEST }}\`)\n\nPlain ArgoCD GitOps will detect the merged PR and deploy automatically to Kubernetes."
+          else
+            echo "Pull Request already exists for branch ${BRANCH_NAME}. Skipping PR creation."
+          fi
+
+      # ========================================================================
+      # Stage 24 — Stop
+      # ========================================================================
+      - name: Stage 24 — Stop
+        run: |
+          echo "CI/CD completed successfully. CI stops after PR creation; ArgoCD handles cluster deployment."

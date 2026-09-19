@@ -1,0 +1,32 @@
+# apps/worker/configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: worker-config
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+data:
+  APP_ENV: "dev"
+  LOG_LEVEL: "info"
+  LOG_FORMAT: "json"
+  AWS_REGION: "us-east-1"
+
+  # ---- Queue configuration -------------------------------------------------
+  # SQS queue URL (set actual value from Terraform output)
+  SQS_QUEUE_URL: "https://sqs.us-east-1.amazonaws.com/ACCOUNT_ID/starter-queue"  # CHANGE
+  SQS_MAX_MESSAGES: "10"           # Max messages per batch
+  SQS_VISIBILITY_TIMEOUT: "300"    # Seconds — must be > longest job duration
+  SQS_WAIT_TIME: "20"              # Long polling wait time (saves API calls)
+
+  # ---- Worker settings -----------------------------------------------------
+  WORKER_CONCURRENCY: "4"          # Threads/processes per pod
+  WORKER_MAX_RETRIES: "3"
+  WORKER_RETRY_DELAY: "5"          # Seconds between retries
+
+  # ---- Backend API (for reporting results) ---------------------------------
+  BACKEND_URL: "http://backend.apps.svc.cluster.local:80"

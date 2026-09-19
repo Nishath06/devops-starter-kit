@@ -1,0 +1,146 @@
+# platform/monitoring/prometheusrule.yaml
+# ------------------------------------------------------------------------------
+# PrometheusRule — defines alerting and recording rules.
+# Prometheus Operator automatically loads rules matching the ruleSelector.
+#
+# Two types of rules:
+#   1. Recording rules: Pre-compute expensive queries and store as new metrics.
+#   2. Alerting rules: Trigger Alertmanager when conditions are met.
+#
+# Severity levels (convention): critical, warning, info
+# ------------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: starter-app-rules           # CHANGE: <app-name>-rules
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/managed-by: argocd
+    # Must match Prometheus CR ruleSelector
+    release: kube-prometheus-stack
+    project: starter
+spec:
+  groups:
+    # -------------------------------------------------------------------------
+    # Application Availability Alerts
+    # -------------------------------------------------------------------------
+    - name: starter-app.availability
+      interval: 30s
+      rules:
+        # Alert: No pods are running
+        - alert: StarterAppDown
+          expr: |
+            sum(kube_deployment_status_replicas_available{
+              namespace="apps",
+              deployment="starter-app-backend"
+            }) == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: platform-engineering
+            environment: "{{ $labels.namespace }}"
+          annotations:
+            summary: "Starter app has no running pods"
+            description: "Deployment starter-app-backend in namespace {{ $labels.namespace }} has 0 available replicas for more than 1 minute."
+            runbook_url: "https://your-wiki.example.com/runbooks/starter-app-down"
+
+        # Alert: Pod restarts detected
+        - alert: HighPodRestartRate
+          expr: |
+            rate(kube_pod_container_status_restarts_total{
+              namespace="apps"
+            }[15m]) * 60 > 5
+          for: 5m
+          labels:
+            severity: warning
+            team: platform-engineering
+          annotations:
+            summary: "High pod restart rate in namespace {{ $labels.namespace }}"
+            description: "Pod {{ $labels.pod }} container {{ $labels.container }} is restarting more than 5 times per minute."
+
+    # -------------------------------------------------------------------------
+    # Application Performance Alerts
+    # -------------------------------------------------------------------------
+    - name: starter-app.performance
+      rules:
+        # Alert: High HTTP error rate (requires app to expose http_requests_total metric)
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_requests_total{
+              namespace="apps",
+              status=~"5.."
+            }[5m])) /
+            sum(rate(http_requests_total{
+              namespace="apps"
+            }[5m])) > 0.05
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High HTTP error rate (>5%)"
+            description: "Error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+        # Alert: Slow response time (requires http_request_duration_seconds metric)
+        - alert: SlowResponseTime
+          expr: |
+            histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{
+              namespace="apps"
+            }[5m])) by (le)) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "P95 response time > 2 seconds"
+            description: "95th percentile response time is {{ $value }}s, which exceeds the 2s SLO."
+
+    # -------------------------------------------------------------------------
+    # Resource Utilisation Alerts
+    # -------------------------------------------------------------------------
+    - name: starter-app.resources
+      rules:
+        # Alert: CPU throttling
+        - alert: CPUThrottling
+          expr: |
+            sum(rate(container_cpu_cfs_throttled_seconds_total{
+              namespace="apps",
+              container!=""
+            }[5m])) by (container, pod) /
+            sum(rate(container_cpu_cfs_periods_total{
+              namespace="apps",
+              container!=""
+            }[5m])) by (container, pod) > 0.25
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Container {{ $labels.container }} is being CPU throttled"
+            description: "CPU throttling ratio is {{ $value | humanizePercentage }}. Consider increasing CPU limits."
+
+        # Alert: High memory usage
+        - alert: HighMemoryUsage
+          expr: |
+            container_memory_working_set_bytes{namespace="apps", container!=""} /
+            container_spec_memory_limit_bytes{namespace="apps", container!=""} > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "Container {{ $labels.container }} memory usage is >85%"
+            description: "Memory usage is {{ $value | humanizePercentage }} of the limit. Risk of OOMKill."
+
+    # -------------------------------------------------------------------------
+    # Recording Rules (pre-computed metrics for dashboards)
+    # -------------------------------------------------------------------------
+    - name: starter-app.recording
+      rules:
+        # Pre-compute request rate for dashboard
+        - record: job:http_requests_total:rate5m
+          expr: sum(rate(http_requests_total{namespace="apps"}[5m])) by (job, status)
+
+        # Pre-compute error rate for dashboard
+        - record: job:http_error_rate:ratio5m
+          expr: |
+            sum(rate(http_requests_total{namespace="apps",status=~"5.."}[5m])) by (job) /
+            sum(rate(http_requests_total{namespace="apps"}[5m])) by (job)

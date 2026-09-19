@@ -1,0 +1,29 @@
+# apps/cronjob/pvc.yaml
+# ------------------------------------------------------------------------------
+# PersistentVolumeClaim for CronJob batch jobs / runners.
+#
+# Use cases:
+#   - Writing large batch export files, report artifacts, or temporary database dumps
+#   - Model weights caching for batch ML inference jobs
+#
+# Note:
+#   - For single-pod access: use `ebs-gp3` (ReadWriteOnce)
+#   - For concurrent multi-pod batch jobs: use `efs-sc` (ReadWriteMany)
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: cronjob-pvc
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: starter-cronjob
+    app.kubernetes.io/component: cronjob
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+spec:
+  accessModes:
+    - ReadWriteOnce                      # Change to ReadWriteMany for EFS
+  storageClassName: ebs-gp3              # Change to efs-sc for multi-pod shared access
+  resources:
+    requests:
+      storage: 10Gi

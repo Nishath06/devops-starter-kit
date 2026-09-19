@@ -1,0 +1,60 @@
+# platform/security/clusterrole.yaml
+# ------------------------------------------------------------------------------
+# Reusable ClusterRole — cluster-scoped RBAC.
+# Use for: controllers, operators, or agents that need cluster-wide visibility.
+#
+# NOTE: Prefer namespace-scoped Role/RoleBinding wherever possible.
+# Only use ClusterRole when cross-namespace or cluster-level resource access is required.
+#
+# Common use cases:
+#   - Prometheus needs to list all Pods/Services/Endpoints across all namespaces.
+#   - A deployment controller watches Deployments cluster-wide.
+#   - ArgoCD application controller manages resources in all namespaces.
+# ------------------------------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: starter-platform-reader    # CHANGE: descriptive name
+  labels:
+    app.kubernetes.io/name: starter-platform-reader
+    app.kubernetes.io/component: security
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+rules:
+  # --- Cluster-wide read access for monitoring agents -----------------------
+  - apiGroups: [""]
+    resources:
+      - nodes
+      - nodes/metrics
+      - nodes/proxy
+      - pods
+      - pods/log
+      - services
+      - endpoints
+      - persistentvolumes
+      - persistentvolumeclaims
+      - namespaces
+      - resourcequotas
+      - limitranges
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets", "statefulsets", "daemonsets"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses", "networkpolicies"]
+    verbs: ["get", "list", "watch"]
+
+  # --- Metrics API access (required for custom HPA metrics) -----------------
+  - apiGroups: ["metrics.k8s.io"]
+    resources: ["pods", "nodes"]
+    verbs: ["get", "list"]

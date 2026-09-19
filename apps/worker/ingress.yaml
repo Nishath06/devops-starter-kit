@@ -1,0 +1,57 @@
+# apps/worker/ingress.yaml
+# ------------------------------------------------------------------------------
+# Worker Ingress — AWS Application Load Balancer (ALB).
+#
+# NOTE: Background queue workers typically consume from message brokers (SQS/Kafka/RabbitMQ)
+# and DO NOT require an external Ingress.
+#
+# However, this template is provided if your worker architecture requires:
+#   1. Webhook callbacks (e.g. Stripe, GitHub, Twilio incoming hooks)
+#   2. Administrative / task management dashboards (e.g. Celery Flower, Bull Board)
+#   3. External health check probes from third-party monitoring services
+#
+# If not needed, keep this file commented or disabled in your GitOps sync.
+# ------------------------------------------------------------------------------
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: worker
+  namespace: apps
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/component: worker
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing           # or 'internal' for private VPC
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /health
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    alb.ingress.kubernetes.io/healthcheck-timeout-seconds: "5"
+    alb.ingress.kubernetes.io/healthy-threshold-count: "2"
+    alb.ingress.kubernetes.io/unhealthy-threshold-count: "2"
+    # AWS ACM Certificate ARN (update for your domain):
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT_ID:certificate/CERT_ID
+    # AWS WAFv2 WebACL ARN (optional):
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:REGION:ACCOUNT_ID:regional/webacl/NAME/ID
+spec:
+  ingressClassName: alb
+  rules:
+    - host: worker-admin.example.com     # CHANGE: your worker dashboard or webhook domain
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: worker
+                port:
+                  number: 8080           # Matches worker admin or health port
+  tls:
+    - hosts:
+        - worker-admin.example.com       # CHANGE: your worker domain
+      # secretName: worker-tls           # For NGINX ingress only

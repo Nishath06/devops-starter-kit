@@ -1,0 +1,36 @@
+# helm/starter-chart/Chart.yaml
+# ------------------------------------------------------------------------------
+# Helm Chart Metadata.
+# This is the reusable starter chart for any microservice.
+# Override values.yaml per environment/application.
+# ------------------------------------------------------------------------------
+apiVersion: v2
+name: starter-chart
+description: >
+  Reusable Kubernetes Helm chart for deploying any microservice on Amazon EKS.
+  Supports backend APIs, frontends, workers, and scheduled jobs.
+  GitOps-compatible — designed for ArgoCD ApplicationSet multi-environment deployment.
+
+type: application
+version: 1.0.0
+appVersion: "1.0.0"    # Updated by GitOps pipeline when image changes
+
+keywords:
+  - kubernetes
+  - eks
+  - gitops
+  - argocd
+  - microservice
+  - starter
+
+maintainers:
+  - name: Platform Engineering
+    email: platform@example.com     # CHANGE: your team email
+
+home: https://github.com/YOUR_ORG/devops-starter-kit
+sources:
+  - https://github.com/YOUR_ORG/devops-starter-kit
+
+annotations:
+  # ArgoCD annotation to trigger notification on new chart version
+  artifacthub.io/changes: "Initial release"

@@ -1,0 +1,46 @@
+# bootstrap/values/efs-csi.yaml
+# ------------------------------------------------------------------------------
+# Helm values for AWS EFS CSI Driver (aws-efs-csi/aws-efs-csi-driver).
+# Reference: https://github.com/kubernetes-sigs/aws-efs-csi-driver/blob/master/charts/aws-efs-csi-driver/values.yaml
+#
+# IMPORTANT: The controller ServiceAccount needs an IRSA role with permissions:
+#   elasticfilesystem:DescribeAccessPoints, elasticfilesystem:CreateAccessPoint,
+#   elasticfilesystem:DeleteAccessPoint, elasticfilesystem:DescribeFileSystems, etc.
+#   Export EFS_CSI_IAM_ROLE_ARN and it will be injected by install.sh.
+#
+# NOTE: EFS is particularly useful for:
+#   - Shared storage across multiple pods (ReadWriteMany)
+#   - ML model caches
+#   - Shared configuration files
+#   - Multi-AZ workloads needing shared persistent storage
+# ------------------------------------------------------------------------------
+
+controller:
+  serviceAccount:
+    create: true
+    name: efs-csi-controller-sa
+    annotations:
+      # IRSA annotation — injected by install.sh via --set
+      # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/efs-csi-controller-sa
+      {}
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+node:
+  # EFS uses NFS mount — requires nfs-utils on the node OS (standard on Amazon Linux 2/AL2023)
+  tolerateAllTaints: true
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# StorageClasses are managed in platform/storage/ — do not create here
+storageClasses: []

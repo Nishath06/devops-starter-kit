@@ -1,0 +1,32 @@
+{{/*
+helm/starter-chart/templates/service.yaml
+*/}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "starter-chart.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "starter-chart.labels" . | nindent 4 }}
+    {{- if .Values.service.annotations }}
+    {{- range $key, $value := .Values.service.annotations }}
+    {{ $key }}: {{ $value | quote }}
+    {{- end }}
+    {{- end }}
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: {{ .Values.service.metricsPort | default 9090 | quote }}
+    prometheus.io/path: "/metrics"
+spec:
+  type: {{ .Values.service.type }}
+  selector:
+    {{- include "starter-chart.selectorLabels" . | nindent 4 }}
+  ports:
+    - name: http
+      protocol: TCP
+      port: {{ .Values.service.port }}
+      targetPort: http
+    - name: metrics
+      protocol: TCP
+      port: {{ .Values.service.metricsPort | default 9090 }}
+      targetPort: metrics

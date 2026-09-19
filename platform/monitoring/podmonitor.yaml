@@ -1,0 +1,33 @@
+# platform/monitoring/podmonitor.yaml
+# ------------------------------------------------------------------------------
+# PodMonitor — scrapes metrics directly from Pod ports (no Service needed).
+# Use when: your pods expose metrics but don't have a Service,
+#           or when you need to scrape individual pods differently.
+#
+# Note: ServiceMonitor is preferred for most applications.
+# Use PodMonitor for sidecar containers, DaemonSets, or StatefulSets.
+# ------------------------------------------------------------------------------
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: starter-app-podmonitor      # CHANGE: <app-name>-podmonitor
+  namespace: monitoring
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: observability
+    app.kubernetes.io/managed-by: argocd
+    release: kube-prometheus-stack  # Must match Prometheus CR podMonitorSelector
+    project: starter
+spec:
+  namespaceSelector:
+    any: true                       # CHANGE: limit to specific namespaces if needed
+
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: starter-app  # CHANGE: pod labels to select
+
+  podMetricsEndpoints:
+    - port: metrics                 # CHANGE: container port name
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

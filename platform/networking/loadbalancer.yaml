@@ -1,0 +1,58 @@
+# platform/networking/loadbalancer.yaml
+# ------------------------------------------------------------------------------
+# Reusable LoadBalancer Service template for AWS NLB (Network Load Balancer).
+# Use for: direct TCP/UDP access to pods (e.g., WebSocket, gRPC, DB proxy).
+# For HTTP/HTTPS with path routing, prefer ALB Ingress (alb-ingress.yaml).
+#
+# AWS NLB is provisioned via the AWS Load Balancer Controller.
+# Reference: https://kubernetes-sigs.github.io/aws-load-balancer-controller/
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: starter-app-nlb             # CHANGE: <app-name>-nlb
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+  annotations:
+    # ---- AWS NLB Annotations ------------------------------------------------
+    service.beta.kubernetes.io/aws-load-balancer-type: "external"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"   # ip = direct pod routing (no iptables)
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing" # CHANGE to "internal" for private NLB
+
+    # --- TLS termination at NLB (optional) ---
+    # service.beta.kubernetes.io/aws-load-balancer-ssl-cert: "arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID"
+    # service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+
+    # --- Cross-zone load balancing (recommended for multi-AZ clusters) ---
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+
+    # --- Health check configuration ---
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-protocol: "TCP"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-interval: "10"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-healthy-threshold: "2"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-unhealthy-threshold: "2"
+
+    # --- Access log (uncomment and set S3 bucket) ---
+    # service.beta.kubernetes.io/aws-load-balancer-access-log-enabled: "true"
+    # service.beta.kubernetes.io/aws-load-balancer-access-log-s3-bucket-name: "my-nlb-access-logs"
+
+spec:
+  type: LoadBalancer
+  loadBalancerClass: service.k8s.aws/nlb   # Required for AWS LBC managed NLB
+  externalTrafficPolicy: Local             # Preserve client source IP; requires cross-zone enabled
+  selector:
+    app.kubernetes.io/name: starter-app
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
+    # - name: https
+    #   protocol: TCP
+    #   port: 443
+    #   targetPort: 8080

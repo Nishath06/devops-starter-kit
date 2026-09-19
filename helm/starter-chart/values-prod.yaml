@@ -1,0 +1,88 @@
+# helm/starter-chart/values-prod.yaml
+# ------------------------------------------------------------------------------
+# Production environment overrides.
+# Applied on top of values.yaml: helm install -f values.yaml -f values-prod.yaml
+#
+# GitOps workflow: GitHub Actions updates ONLY `image.tag` in this file via PR.
+# All other production settings should be stable and reviewed by the team.
+# ------------------------------------------------------------------------------
+
+global:
+  environment: prod
+
+# Production: 3 replicas minimum for HA across 3 AZs
+replicaCount: 3
+
+image:
+  # GitOps pipeline updates this tag via PR — do not change manually
+  tag: "1.0.0"                     # Pinned version — updated by GitHub Actions
+  pullPolicy: IfNotPresent          # Use cached image if tag already pulled
+
+# Production: tuned resources
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Production: HPA enabled with conservative settings
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65    # More headroom in prod
+  targetMemoryUtilizationPercentage: 70
+  scaleDownStabilizationWindowSeconds: 600  # 10 min stabilization in prod
+
+# Production: internet-facing ALB with WAF and ACM certificate
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443},{"HTTP":80}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    alb.ingress.kubernetes.io/healthcheck-path: /healthz
+    alb.ingress.kubernetes.io/healthcheck-interval-seconds: "15"
+    # CHANGE: Add your ACM certificate ARN
+    # alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:REGION:ACCOUNT:certificate/CERT_ID
+    # CHANGE: Add your WAF ACL ARN
+    # alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:REGION:ACCOUNT:regional/webacl/NAME/ID
+    alb.ingress.kubernetes.io/load-balancer-attributes: >-
+      idle_timeout.timeout_seconds=60,routing.http2.enabled=true
+    alb.ingress.kubernetes.io/tags: "Environment=prod,ManagedBy=argocd"
+  hosts:
+    - host: api.example.com        # CHANGE: production hostname
+      paths:
+        - path: /
+          pathType: Prefix
+
+# Production: PDB ensures at least 2 pods always available
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2                  # N-1 redundancy
+
+# Production: high-priority scheduling
+priorityClassName: high-priority
+
+# Production: longer grace period for in-flight requests
+terminationGracePeriodSeconds: 60
+
+# Production config overrides
+config:
+  APP_ENV: "prod"
+  LOG_LEVEL: "warn"                # Minimal logging in prod (reduce costs)
+  LOG_FORMAT: "json"               # JSON for CloudWatch Insights
+
+# Production: storage enabled
+persistence:
+  enabled: false                   # Enable and configure if app needs disk
+  storageClass: ebs-gp3
+  size: 20Gi
+
+# Production: secrets should come from External Secrets Operator
+# Remove hardcoded secrets below and replace with ExternalSecret CRs
+secrets: {}

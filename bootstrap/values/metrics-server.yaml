@@ -1,0 +1,35 @@
+# bootstrap/values/metrics-server.yaml
+# ------------------------------------------------------------------------------
+# Helm values for Metrics Server (metrics-server/metrics-server).
+# Provides CPU and Memory metrics consumed by HPA.
+# Reference: https://github.com/kubernetes-sigs/metrics-server/blob/master/charts/metrics-server/values.yaml
+# ------------------------------------------------------------------------------
+
+replicaCount: 2
+
+# Required on EKS with self-signed kubelet certificates
+args:
+  - --kubelet-insecure-tls
+  - --kubelet-preferred-address-types=InternalIP
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+# PodDisruptionBudget for HA
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Metrics API priority (important for HPA responsiveness)
+priorityClassName: system-cluster-critical
+
+# Tolerations to allow scheduling on control-plane nodes if needed
+# tolerations:
+#   - key: node-role.kubernetes.io/control-plane
+#     operator: Exists
+#     effect: NoSchedule

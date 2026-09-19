@@ -1,0 +1,33 @@
+# platform/networking/headless.yaml
+# ------------------------------------------------------------------------------
+# Reusable Headless Service template.
+# Use for: StatefulSets (databases, Kafka, Redis Cluster, Cassandra)
+#          where each pod needs a stable DNS name and direct addressing.
+#
+# Headless services (clusterIP: None) return all pod IPs via DNS instead of
+# a single virtual IP — required for StatefulSet peer discovery.
+#
+# DNS pattern: <pod-name>.<service-name>.<namespace>.svc.cluster.local
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: starter-app-headless        # CHANGE: <app-name>-headless
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: database   # CHANGE: component type
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  type: ClusterIP
+  clusterIP: None    # <-- This makes it headless
+  publishNotReadyAddresses: true    # Include not-ready pods in DNS (useful for StatefulSet init)
+  selector:
+    app.kubernetes.io/name: starter-app
+  ports:
+    - name: client
+      protocol: TCP
+      port: 6379       # CHANGE: your app's port (e.g., 6379 for Redis, 9092 for Kafka)
+      targetPort: 6379

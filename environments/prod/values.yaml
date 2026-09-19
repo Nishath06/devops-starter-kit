@@ -1,0 +1,58 @@
+# environments/prod/values.yaml
+# ------------------------------------------------------------------------------
+# Production environment values.
+# GitOps workflow: GitHub Actions updates ONLY image.tag via PR after:
+#   1. Build and push image to ECR.
+#   2. Run security scan (Trivy/Snyk).
+#   3. Create PR updating this file's image.tag.
+#   4. PR reviewed and merged.
+#   5. ArgoCD detects commit and deploys.
+# ------------------------------------------------------------------------------
+
+global:
+  environment: prod
+
+image:
+  # !! THIS IS THE ONLY VALUE GITHUB ACTIONS SHOULD CHANGE !!
+  tag: "1.0.0"                     # Updated by GitHub Actions CI pipeline
+  pullPolicy: IfNotPresent
+
+replicaCount: 3
+
+ingress:
+  hosts:
+    - host: api.example.com        # CHANGE: production hostname
+      paths:
+        - path: /
+          pathType: Prefix
+
+config:
+  APP_ENV: "prod"
+  LOG_LEVEL: "warn"
+
+autoscaling:
+  enabled: true
+  minReplicas: 3
+  maxReplicas: 20
+  targetCPUUtilizationPercentage: 65
+  targetMemoryUtilizationPercentage: 70
+  scaleDownStabilizationWindowSeconds: 600
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 2
+
+priorityClassName: high-priority
+
+terminationGracePeriodSeconds: 60
+
+resources:
+  requests:
+    cpu: 200m
+    memory: 256Mi
+  limits:
+    cpu: 1000m
+    memory: 1Gi
+
+# Production secrets come from External Secrets Operator, not here
+secrets: {}

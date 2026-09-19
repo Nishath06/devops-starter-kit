@@ -1,0 +1,45 @@
+# bootstrap/values/ebs-csi.yaml
+# ------------------------------------------------------------------------------
+# Helm values for AWS EBS CSI Driver (aws-ebs-csi/aws-ebs-csi-driver).
+# Reference: https://github.com/kubernetes-sigs/aws-ebs-csi-driver/blob/master/charts/aws-ebs-csi-driver/values.yaml
+#
+# IMPORTANT: The controller ServiceAccount needs an IRSA role with permissions:
+#   ec2:CreateVolume, ec2:DeleteVolume, ec2:DescribeVolumes, ec2:AttachVolume,
+#   ec2:DetachVolume, ec2:DescribeSnapshots, ec2:CreateSnapshot, etc.
+#   Export EBS_CSI_IAM_ROLE_ARN and it will be injected by install.sh.
+# ------------------------------------------------------------------------------
+
+controller:
+  replicaCount: 2
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+  serviceAccount:
+    create: true
+    name: ebs-csi-controller-sa
+    annotations:
+      # IRSA annotation — injected by install.sh via --set
+      # eks.amazonaws.com/role-arn: arn:aws:iam::ACCOUNT_ID:role/ebs-csi-controller-sa
+      {}
+
+  podDisruptionBudget:
+    enabled: true
+    maxUnavailable: 1
+
+node:
+  tolerateAllTaints: true   # Allow scheduling on tainted nodes (e.g., GPU nodes)
+  resources:
+    requests:
+      cpu: 25m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# StorageClasses are managed in platform/storage/ — do not create here
+storageClasses: []

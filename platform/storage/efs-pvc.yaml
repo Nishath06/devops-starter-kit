@@ -1,0 +1,23 @@
+# platform/storage/efs-pvc.yaml
+# ------------------------------------------------------------------------------
+# PersistentVolumeClaim template for AWS EFS.
+# Use ReadWriteMany to allow multiple pods to share the same volume.
+# ------------------------------------------------------------------------------
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: starter-app-efs-pvc         # CHANGE: <app-name>-efs-pvc
+  namespace: apps                   # CHANGE: target namespace
+  labels:
+    app.kubernetes.io/name: starter-app
+    app.kubernetes.io/component: storage
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+    project: starter
+spec:
+  accessModes:
+    - ReadWriteMany   # EFS supports multi-pod simultaneous access
+  storageClassName: efs-sc          # References efs-storageclass.yaml
+  resources:
+    requests:
+      storage: 5Gi                 # EFS is elastic — this is a minimum hint; actual usage is billed per GB

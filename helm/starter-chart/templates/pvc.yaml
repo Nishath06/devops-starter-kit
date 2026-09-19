@@ -1,0 +1,19 @@
+{{/*
+helm/starter-chart/templates/pvc.yaml
+*/}}
+{{- if .Values.persistence.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "starter-chart.fullname" . }}-pvc
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "starter-chart.labels" . | nindent 4 }}
+spec:
+  accessModes:
+    - {{ .Values.persistence.accessMode | default "ReadWriteOnce" }}
+  storageClassName: {{ .Values.persistence.storageClass | default "ebs-gp3" }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | default "10Gi" }}
+{{- end }}

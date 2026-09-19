@@ -1,0 +1,56 @@
+# argocd/applications/frontend.yaml
+# ------------------------------------------------------------------------------
+# ArgoCD Application: Frontend Service (React/NGINX)
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: frontend
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: frontend
+    app.kubernetes.io/component: frontend
+    app.kubernetes.io/managed-by: argocd
+    environment: dev
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+
+  source:
+    repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+    targetRevision: HEAD
+    path: apps/frontend
+
+    # Helm alternative:
+    # path: helm/starter-chart
+    # helm:
+    #   valueFiles:
+    #     - ../../environments/dev/values.yaml
+    #   parameters:
+    #     - name: image.repository
+    #       value: "<ACCOUNT>.dkr.ecr.<REGION>.amazonaws.com/frontend"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: apps
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 5s
+        factor: 2
+        maxDuration: 3m
+
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas

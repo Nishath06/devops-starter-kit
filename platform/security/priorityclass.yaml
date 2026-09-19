@@ -1,0 +1,69 @@
+# platform/security/priorityclass.yaml
+# ------------------------------------------------------------------------------
+# PriorityClass — controls pod scheduling priority and eviction order.
+# Higher value = higher priority = scheduled first, evicted last.
+#
+# Use cases on EKS:
+#   - Ensure critical platform pods (DNS, Metrics Server) survive node pressure.
+#   - Prioritise production pods over dev/staging batch jobs.
+#   - Protect monitoring from eviction during resource exhaustion.
+#
+# Built-in classes (do not override these):
+#   - system-cluster-critical: 2000000000 (CoreDNS, kube-proxy)
+#   - system-node-critical: 2000001000 (kubelet-related)
+# ------------------------------------------------------------------------------
+
+# --- Platform-critical: monitoring, operators, controllers ------------------
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: platform-critical
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+value: 1000000                      # High but below system-cluster-critical
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Platform-critical workloads: monitoring, operators. Evicted last."
+
+---
+# --- Production applications ------------------------------------------------
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: high-priority
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+value: 100000
+globalDefault: false
+preemptionPolicy: PreemptLowerPriority
+description: "Production application workloads. Use for prod replicas."
+
+---
+# --- Standard priority (default for most workloads) -------------------------
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: medium-priority
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+value: 10000
+globalDefault: true                 # Applied to pods that don't specify a PriorityClass
+preemptionPolicy: PreemptLowerPriority
+description: "Default priority for application workloads."
+
+---
+# --- Low priority: batch jobs, dev workloads --------------------------------
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: low-priority
+  labels:
+    app.kubernetes.io/managed-by: argocd
+    project: starter
+value: 1000
+globalDefault: false
+preemptionPolicy: Never             # Will not preempt other pods; will be evicted first
+description: "Low-priority batch jobs and dev workloads. Evicted first."

@@ -1,0 +1,48 @@
+# argocd/applications/networking.yaml
+# ------------------------------------------------------------------------------
+# ArgoCD Application: Networking Layer
+# Manages: platform/networking/ (Services, Ingress templates)
+# Also manages: platform/namespaces/ (namespace definitions)
+# ------------------------------------------------------------------------------
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: networking
+  namespace: argocd
+  labels:
+    app.kubernetes.io/name: networking
+    app.kubernetes.io/component: networking
+    app.kubernetes.io/managed-by: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: "-8"   # Deploy networking before apps
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: platform
+
+  sources:
+    # Manage namespaces and networking in a single application
+    - repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+      targetRevision: HEAD
+      path: platform/namespaces
+    - repoURL: https://github.com/YOUR_ORG/devops-starter-kit
+      targetRevision: HEAD
+      path: platform/policies
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    retry:
+      limit: 3
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 2m
