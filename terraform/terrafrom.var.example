@@ -1,0 +1,98 @@
+# =============================================================================
+# terraform.tfvars — Active Project Variable Definitions
+# =============================================================================
+
+project_name = "your project name "
+
+environment = "dev"
+
+aws_region = "region-you want to deploy"
+
+cluster_name = "your clustername "
+
+# Kubernetes Version
+cluster_version = "1.33"
+
+# Networking
+vpc_cidr        = "10.0.0.0/16"
+public_subnets  = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnets = ["10.0.10.0/24", "10.0.20.0/24"]
+
+single_nat_gateway   = true
+enable_vpc_flow_logs = false
+
+# EKS API Endpoint Access
+cluster_endpoint_public_access       = true
+cluster_endpoint_private_access      = true
+cluster_endpoint_public_access_cidrs = ["0.0.0.0/0"]
+
+# Control Plane Logging
+cluster_log_types             = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+cluster_log_retention_in_days = 30
+
+# KMS Encryption
+enable_encryption  = false
+encryption_key_arn = ""
+
+# Node Group
+node_group_name     = "general-workers"
+node_instance_types = ["t3.small"]
+node_ami_type       = "AL2023_x86_64_STANDARD"
+node_capacity_type  = "ON_DEMAND"
+node_disk_size      = 20
+
+node_scaling_config = {
+  desired_size = 2
+  min_size     = 2
+  max_size     = 2
+}
+
+node_labels = {
+  role        = "worker"
+  environment = "prod"
+}
+
+node_taints = []
+
+# ECR Repositories
+ecr_repositories = [
+  "repo 1",
+  "repo 2",
+  "repo 3",
+  "repo 4"
+]
+ecr_image_tag_mutability = "MUTABLE"
+ecr_scan_on_push         = true
+ecr_max_image_count      = 10
+
+# Tags
+tags = {
+  CostCenter = "DevOps"
+  Compliance = "PCI-DSS-Ready"
+}
+
+microservices = {
+  revenuepilot_ai_backend = {
+    repository = "repo of backend"
+    namespace  = "backend"
+    port       = 8000
+  }
+
+  merchant_dashboard_frontend = {
+    repository = "repo of frontend"
+    namespace  = "frontend"
+    port       = 3000
+  }
+
+  revenue_store_backend = {
+    repository = "repo of store backen"
+    namespace  = "store"
+    port       = 8080
+  }
+
+  revenue_store_frontend = {
+    repository = "repo of frontend"
+    namespace  = "store"
+    port       = 3000
+  }
+}

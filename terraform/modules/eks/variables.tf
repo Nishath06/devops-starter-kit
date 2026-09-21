@@ -149,3 +149,7 @@ variable "tags" {
   default     = {}
 }
 
+variable "secrets_store_csi_version" {
+  type    = string
+  default = "v1.4.8-eksbuild.1"
+}

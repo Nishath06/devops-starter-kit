@@ -38,3 +38,6 @@ output "ebs_csi_role_arn" {
 output "ebs_csi_role_dependency" {
   value = aws_iam_role_policy_attachment.ebs_csi
 }
+output "backend_secrets_role_arn" {
+  value = aws_iam_role.backend_secrets.arn
+}

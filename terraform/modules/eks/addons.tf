@@ -119,3 +119,38 @@ resource "aws_eks_addon" "ebs_csi" {
     Addon = "aws-ebs-csi-driver"
   })
 }
+# ---------------------------------------------------------------------------
+# Secrets Store CSI Driver
+# ---------------------------------------------------------------------------
+
+resource "aws_eks_addon" "secrets_store_csi" {
+
+  cluster_name  = aws_eks_cluster.this.name
+  addon_name    = "secrets-store-csi-driver"
+  addon_version = var.secrets_store_csi_version
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "OVERWRITE"
+
+  tags = merge(var.tags, {
+    Component = "SecretsStoreCSI"
+  })
+}
+
+# ---------------------------------------------------------------------------
+# AWS Provider for Secrets Store CSI Driver
+# ---------------------------------------------------------------------------
+
+resource "helm_release" "aws_secrets_provider" {
+
+  name       = "secrets-provider-aws"
+  repository = "https://aws.github.io/secrets-store-csi-driver-provider-aws"
+  chart      = "secrets-store-csi-driver-provider-aws"
+
+  namespace        = "kube-system"
+  create_namespace = false
+
+  depends_on = [
+    aws_eks_addon.secrets_store_csi
+  ]
+}

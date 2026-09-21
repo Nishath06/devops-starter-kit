@@ -266,3 +266,13 @@ variable "microservices" {
 
   default = {}
 }
+
+# -----------------------------------------------------------------------------
+# Secrets Variables
+# -----------------------------------------------------------------------------
+variable "mongodb_uri" {
+  description = "MongoDB Atlas connection string for application secrets."
+  type        = string
+  sensitive   = true
+  default     = ""
+}

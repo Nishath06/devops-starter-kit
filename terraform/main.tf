@@ -33,6 +33,8 @@ module "iam" {
 
   cluster_name    = var.cluster_name
   oidc_issuer_url = module.eks.cluster_oidc_issuer_url
+  secret_prefix   = module.secrets.secret_prefix
+
 
   tags = var.tags
 }
@@ -87,4 +89,13 @@ module "ecr" {
   max_image_count      = var.ecr_max_image_count
 
   tags = var.tags
+}
+module "secrets" {
+
+  source = "./modules/secrets"
+
+  cluster_name = var.cluster_name
+  tags         = var.tags
+
+  mongodb_uri = var.mongodb_uri
 }

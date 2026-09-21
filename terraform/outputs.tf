@@ -116,3 +116,14 @@ output "configure_kubectl" {
   value       = "aws eks update-kubeconfig --region ${var.aws_region} --name ${module.eks.cluster_name}"
 }
 
+output "backend_secrets_role_arn" {
+  value = module.iam.backend_secrets_role_arn
+}
+
+output "secret_prefix" {
+  value = module.secrets.secret_prefix
+}
+
+output "mongodb_secret_arn" {
+  value = module.secrets.mongodb_secret_arn
+}
