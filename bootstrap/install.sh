@@ -33,6 +33,19 @@
 set -euo pipefail
 
 # ---------------------------------------------------------------------------
+# Load environment variables from bootstrap/.env
+# ---------------------------------------------------------------------------
+ENV_FILE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.env"
+
+if [[ -f "${ENV_FILE}" ]]; then
+  echo "[INFO] Loading configuration from ${ENV_FILE}"
+  set -a
+  source "${ENV_FILE}"
+  set +a
+else
+  echo "[WARN] No bootstrap/.env found. Falling back to default environment variables."
+fi
+# ---------------------------------------------------------------------------
 # Colour helpers
 # ---------------------------------------------------------------------------
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
