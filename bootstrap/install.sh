@@ -57,11 +57,17 @@ AWS_LBC_CHART_VERSION="${AWS_LBC_CHART_VERSION:-1.8.1}"
 EXTERNAL_SECRETS_CHART_VERSION="${EXTERNAL_SECRETS_CHART_VERSION:-0.10.0}"
 EBS_CSI_CHART_VERSION="${EBS_CSI_CHART_VERSION:-2.33.0}"
 EFS_CSI_CHART_VERSION="${EFS_CSI_CHART_VERSION:-3.0.7}"
-
+SECRETS_STORE_CSI_CHART_VERSION="${SECRETS_STORE_CSI_CHART_VERSION:-1.4.7}"
+AWS_PROVIDER_CHART_VERSION="${AWS_PROVIDER_CHART_VERSION:-0.3.9}"
 # Script directory — all values files are relative to here
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VALUES_DIR="${SCRIPT_DIR}/values"
 
+# Secrets Store CSI Driver IRSA Role
+SECRETS_CSI_IAM_ROLE_ARN="${SECRETS_CSI_IAM_ROLE_ARN:-}"
+
+# External Secrets Operator IRSA Role
+ESO_IAM_ROLE_ARN="${ESO_IAM_ROLE_ARN:-}"
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -123,6 +129,15 @@ helm_upgrade_install() {
   success "'${release}' is ready."
 }
 
+require_env() {
+  local var="$1"
+
+  if [[ -z "${!var:-}" ]]; then
+    error "Environment variable '$var' is required."
+    exit 1
+  fi
+}
+
 # ---------------------------------------------------------------------------
 # Pre-flight checks
 # ---------------------------------------------------------------------------
@@ -155,6 +170,8 @@ setup_helm_repos() {
   add_helm_repo "external-secrets" "https://charts.external-secrets.io"
   add_helm_repo "aws-ebs-csi"     "https://kubernetes-sigs.github.io/aws-ebs-csi-driver"
   add_helm_repo "aws-efs-csi"     "https://kubernetes-sigs.github.io/aws-efs-csi-driver"
+  add_helm_repo "secrets-store-csi-driver" "https://kubernetes-sigs.github.io/secrets-store-csi-driver/charts"
+  add_helm_repo "aws-secrets-manager" "https://aws.github.io/secrets-store-csi-driver-provider-aws"
   run helm repo update
   success "Helm repositories updated."
 }
@@ -228,17 +245,21 @@ install_aws_lbc() {
 # ---------------------------------------------------------------------------
 install_external_secrets() {
   info "==> Installing External Secrets Operator..."
-  # NOTE: After installation, create SecretStore / ClusterSecretStore CRs
-  # pointing at AWS Secrets Manager or SSM Parameter Store.
+
+  require_env ESO_IAM_ROLE_ARN
+
   ensure_namespace "external-secrets"
+
   helm_upgrade_install \
     "external-secrets" \
     "external-secrets/external-secrets" \
     "external-secrets" \
     "${VALUES_DIR}/external-secrets.yaml" \
-    --version "${EXTERNAL_SECRETS_CHART_VERSION}"
-}
+    --version "${EXTERNAL_SECRETS_CHART_VERSION}" \
+    --set "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn=${ESO_IAM_ROLE_ARN}"
 
+  success "External Secrets Operator installed."
+}
 # ---------------------------------------------------------------------------
 # Step 6: AWS EBS CSI Driver
 # ---------------------------------------------------------------------------
@@ -279,6 +300,37 @@ install_efs_csi() {
     "${VALUES_DIR}/efs-csi.yaml" \
     --version "${EFS_CSI_CHART_VERSION}" \
     --set "controller.serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn=${efs_role_arn}"
+}
+
+install_secrets_store_csi() {
+  info "==> Installing Secrets Store CSI Driver..."
+
+  require_env SECRETS_CSI_IAM_ROLE_ARN
+
+  ensure_namespace "kube-system"
+
+  # Install Secrets Store CSI Driver
+  helm_upgrade_install \
+    "secrets-store-csi-driver" \
+    "secrets-store-csi-driver/secrets-store-csi-driver" \
+    "kube-system" \
+    "${VALUES_DIR}/secrets-store-csi.yaml" \
+    --version "${SECRETS_STORE_CSI_CHART_VERSION}"
+
+  # Install AWS Provider for Secrets Store CSI Driver
+  helm_upgrade_install \
+    "secrets-provider-aws" \
+    "aws-secrets-manager/secrets-provider-aws" \
+    "kube-system" \
+    "${VALUES_DIR}/secrets-provider-aws.yaml" \
+    --version "${AWS_PROVIDER_CHART_VERSION}" \
+    --set "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn=${SECRETS_CSI_IAM_ROLE_ARN}"
+
+  # Wait until DaemonSet is ready
+  kubectl rollout status daemonset/csi-secrets-store \
+    -n kube-system --timeout=5m
+
+  success "Secrets Store CSI Driver installed."
 }
 
 # ---------------------------------------------------------------------------

@@ -65,14 +65,39 @@ main() {
   sleep 5
 
   # Remove in reverse install order to respect dependencies
-  helm_uninstall "aws-efs-csi-driver"             "kube-system"
-  helm_uninstall "aws-ebs-csi-driver"             "kube-system"
-  helm_uninstall "external-secrets"               "external-secrets"
-  helm_uninstall "aws-load-balancer-controller"   "kube-system"
-  helm_uninstall "metrics-server"                 "kube-system"
-  helm_uninstall "kube-prometheus-stack"          "monitoring"
-  helm_uninstall "argocd"                         "argocd"
 
+  # ---------------------------------------------------------------------------
+  # Secrets Store CSI Driver
+  # ---------------------------------------------------------------------------
+  helm_uninstall "secrets-provider-aws"     "kube-system"
+  helm_uninstall "secrets-store-csi-driver" "kube-system"
+
+  # ---------------------------------------------------------------------------
+  # CSI Drivers
+  # ---------------------------------------------------------------------------
+  helm_uninstall "aws-efs-csi-driver"       "kube-system"
+  helm_uninstall "aws-ebs-csi-driver"       "kube-system"
+
+  # ---------------------------------------------------------------------------
+  # Secrets Management
+  # ---------------------------------------------------------------------------
+  helm_uninstall "external-secrets"         "external-secrets"
+
+  # ---------------------------------------------------------------------------
+  # Networking
+  # ---------------------------------------------------------------------------
+  helm_uninstall "aws-load-balancer-controller" "kube-system"
+
+  # ---------------------------------------------------------------------------
+  # Monitoring
+  # ---------------------------------------------------------------------------
+  helm_uninstall "metrics-server"           "kube-system"
+  helm_uninstall "kube-prometheus-stack"    "monitoring"
+
+  # ---------------------------------------------------------------------------
+  # GitOps
+  # ---------------------------------------------------------------------------
+  helm_uninstall "argocd"                   "argocd"
   # Clean up CRDs left by kube-prometheus-stack (optional)
   warn "Removing Prometheus CRDs (if any remain)..."
   run kubectl delete crd \
